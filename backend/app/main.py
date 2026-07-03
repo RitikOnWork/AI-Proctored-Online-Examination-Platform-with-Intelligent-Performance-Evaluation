@@ -28,6 +28,13 @@ from app.api.v1.router import api_router
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+import os
+from fastapi.staticfiles import StaticFiles
+
+# Ensure static uploads directory exists
+os.makedirs("static/uploads", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/", tags=["Health Check"])
 async def root():

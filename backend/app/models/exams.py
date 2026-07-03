@@ -1,9 +1,10 @@
 import uuid
 import datetime
-from typing import List, TYPE_CHECKING
-from sqlalchemy import ForeignKey, String, Text, Integer, Boolean, DateTime, UniqueConstraint
+from typing import List, Optional, TYPE_CHECKING
+from sqlalchemy import ForeignKey, String, Text, Integer, Boolean, DateTime, UniqueConstraint, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.exam_sessions import ExamSession
 
 
+# ... (Exam and ExamQuestion classes remain unchanged, only top imports and ExamSettings change)
 class Exam(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -82,13 +84,23 @@ class Exam(Base, TimestampMixin):
         back_populates="exam",
         cascade="all, delete-orphan"
     )
+    settings: Mapped[Optional["ExamSettings"]] = relationship(
+        "ExamSettings",
+        back_populates="exam",
+        uselist=False,
+        cascade="all, delete-orphan"
+    )
+
+    # Association Proxy to access QuestionBank entries directly via exam.questions
+    questions: AssociationProxy[List["QuestionBank"]] = association_proxy(
+        "question_associations", "question"
+    )
 
     def __repr__(self) -> str:
         return f"<Exam {self.title}>"
 
 
 class ExamQuestion(Base, TimestampMixin):
-    # Enforces compound unique check or uses explicit key
     __table_args__ = (
         UniqueConstraint("exam_id", "question_id", name="uq_exam_question"),
     )
@@ -133,3 +145,100 @@ class ExamQuestion(Base, TimestampMixin):
 
     def __repr__(self) -> str:
         return f"<ExamQuestion Exam={self.exam_id} Question={self.question_id}>"
+
+
+class ExamSettings(Base, TimestampMixin):
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        index=True
+    )
+    exam_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("exam.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    # Proctoring settings flags
+    enable_camera: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    enable_microphone: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    enable_browser_lock: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    max_tab_switches: Mapped[int] = mapped_column(
+        Integer,
+        default=3,
+        nullable=False
+    )
+    max_face_violations: Mapped[int] = mapped_column(
+        Integer,
+        default=5,
+        nullable=False
+    )
+    shuffle_questions: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+    show_results_immediately: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+
+    # New proctoring and policy configuration flags
+    proctoring_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    face_detection_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    enable_gaze_tracking: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    suspicion_threshold: Mapped[int] = mapped_column(
+        Integer,
+        default=5,
+        nullable=False
+    )
+    enable_negative_marking: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+    difficulty_distribution: Mapped[Optional[dict]] = mapped_column(
+        JSON,
+        nullable=True
+    )
+    question_distribution: Mapped[Optional[dict]] = mapped_column(
+        JSON,
+        nullable=True
+    )
+
+    # Relationships
+    exam: Mapped["Exam"] = relationship(
+        "Exam",
+        back_populates="settings"
+    )
+
+    def __repr__(self) -> str:
+        return f"<ExamSettings Exam={self.exam_id}>"

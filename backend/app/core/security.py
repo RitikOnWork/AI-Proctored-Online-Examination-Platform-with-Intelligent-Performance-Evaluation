@@ -96,3 +96,27 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
         return payload
     except (jwt.PyJWTError, ValueError):
         return None
+
+
+def create_exam_token(
+    student_id: Union[str, Any], exam_id: Union[str, Any], expires_minutes: int = 5
+) -> str:
+    """
+    Generate a short-lived exam access token binding student_id and exam_id.
+    Valid for short periods to prevent token sharing during active exams.
+    """
+    expire = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+        minutes=expires_minutes
+    )
+    to_encode: Dict[str, Any] = {
+        "sub": str(student_id),
+        "exam_id": str(exam_id),
+        "exp": int(expire.timestamp()),
+        "type": "exam_entry",
+    }
+    encoded_jwt = jwt.encode(
+        to_encode,
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM
+    )
+    return encoded_jwt

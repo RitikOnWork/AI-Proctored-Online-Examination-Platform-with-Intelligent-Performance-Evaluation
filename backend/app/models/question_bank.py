@@ -1,8 +1,8 @@
 import enum
 import uuid
-from typing import List, TYPE_CHECKING
-from sqlalchemy import ForeignKey, String, Text, Boolean, Integer, Enum
-from sqlalchemy.dialects.postgresql import UUID
+from typing import List, Optional, TYPE_CHECKING
+from sqlalchemy import ForeignKey, String, Text, Boolean, Integer, Enum, Numeric
+from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
@@ -13,8 +13,10 @@ if TYPE_CHECKING:
 
 class QuestionType(str, enum.Enum):
     MCQ = "mcq"
-    TRUE_FALSE = "true_false"
-    SUBJECTIVE = "subjective"
+    MULTI_SELECT = "multi_select"
+    SHORT_ANSWER = "short_answer"
+    LONG_ANSWER = "long_answer"
+    IMAGE_UPLOAD = "image_upload"
 
 
 class QuestionBank(Base, TimestampMixin):
@@ -30,12 +32,20 @@ class QuestionBank(Base, TimestampMixin):
         nullable=False,
         index=True
     )
+    title: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False
+    )
     question_text: Mapped[str] = mapped_column(
         Text,
         nullable=False
     )
+    question_image: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True
+    )
     question_type: Mapped[QuestionType] = mapped_column(
-        Enum(QuestionType, name="question_type"),
+        Enum(QuestionType, name="question_type", values_callable=lambda x: [e.value for e in x]),
         nullable=False
     )
     difficulty: Mapped[str] = mapped_column(
@@ -43,10 +53,31 @@ class QuestionBank(Base, TimestampMixin):
         default="medium",
         nullable=False
     )
-    points: Mapped[int] = mapped_column(
-        Integer,
-        default=1,
+    marks: Mapped[float] = mapped_column(
+        Numeric(5, 2),
+        default=1.0,
         nullable=False
+    )
+    negative_marks: Mapped[float] = mapped_column(
+        Numeric(5, 2),
+        default=0.0,
+        nullable=False
+    )
+    tags: Mapped[Optional[List[str]]] = mapped_column(
+        ARRAY(String(50)),
+        nullable=True
+    )
+    expected_answer: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True
+    )
+    model_answer: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True
+    )
+    explanation: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True
     )
 
     # Relationships
