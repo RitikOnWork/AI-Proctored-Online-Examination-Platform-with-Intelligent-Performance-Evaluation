@@ -114,9 +114,9 @@ export default function Home() {
                 variants={itemVariants}
                 className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.08] text-foreground"
               >
-                AI-Proctored Online <br />
+                ProctorAI <br />
                 <span className="bg-gradient-to-r from-primary via-violet-500 to-accent bg-clip-text text-transparent">
-                  Examination Platform
+                  AI-Powered Online Examination Platform
                 </span>
               </motion.h1>
 
@@ -124,7 +124,7 @@ export default function Home() {
                 variants={itemVariants}
                 className="text-base sm:text-lg text-muted-foreground max-w-xl leading-relaxed"
               >
-                Conduct secure, high-fidelity examinations from anywhere. Empowered by multi-modal AI gaze detection, browser locks, and automated performance evaluation.
+                ProctorAI is a secure AI-powered online examination platform featuring intelligent proctoring, automated evaluation, and comprehensive exam management.
               </motion.p>
 
               {/* CTAs */}
@@ -443,10 +443,10 @@ export default function Home() {
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <Shield className="h-5 w-5 text-primary animate-pulse" />
-              <span className="font-bold text-lg">VeriExam.AI</span>
+              <span className="font-bold text-lg">ProctorAI</span>
             </div>
             <p className="text-muted-foreground text-xs leading-relaxed max-w-xs">
-              AI-Proctored Online Examination Platform securing academic integrity and evaluation services globally.
+              ProctorAI is a secure AI-powered online examination platform featuring intelligent proctoring, automated evaluation, and comprehensive exam management.
             </p>
           </div>
 
@@ -470,7 +470,7 @@ export default function Home() {
           <div className="space-y-3">
             <h4 className="font-semibold text-foreground">Contact Support</h4>
             <div className="space-y-1 text-xs text-muted-foreground leading-relaxed">
-              <p>Email: support@veriexam.ai</p>
+              <p>Email: support@proctorai.com</p>
               <p>Phone: +1 (555) 902-1200</p>
               <p>Status: All Systems Operational</p>
             </div>
@@ -496,7 +496,7 @@ export default function Home() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-6 border-t border-border/40 text-center text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} VeriExam.AI. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} ProctorAI. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -1,6 +1,6 @@
-# AI-Proctored Online Examination Platform with Intelligent Performance Evaluation
+# ProctorAI — AI-Powered Online Examination Platform
 
-A production-ready template for an AI-Proctored Online Examination Platform. It features a modern decoupled stack: a **FastAPI** backend leveraging **SQLAlchemy 2.0** with async PostgreSQL, and a **Next.js** frontend with **TypeScript** and **TailwindCSS**.
+ProctorAI is a secure AI-powered online examination platform featuring intelligent proctoring, automated evaluation, and comprehensive exam management. It features a modern decoupled stack: a **FastAPI** backend leveraging **SQLAlchemy 2.0** with async PostgreSQL, and a **Next.js** frontend with **TypeScript** and **TailwindCSS**.
 
 ---
 

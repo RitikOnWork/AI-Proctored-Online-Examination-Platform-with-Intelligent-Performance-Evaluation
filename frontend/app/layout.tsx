@@ -8,8 +8,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "AI-Proctored Online Examination Platform",
-  description: "Secure, reliable, and intelligent evaluation environment.",
+  title: "ProctorAI — AI-Powered Online Examination Platform",
+  description: "ProctorAI is a secure AI-powered online examination platform featuring intelligent proctoring, automated evaluation, and comprehensive exam management.",
 };
 
 export default function RootLayout({

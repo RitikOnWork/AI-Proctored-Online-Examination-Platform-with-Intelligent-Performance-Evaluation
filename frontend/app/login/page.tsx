@@ -114,7 +114,7 @@ export default function LoginPage() {
         setIsLoading(false);
         setToast({
           type: "success",
-          message: `Successfully authenticated! Welcome to VeriExam.`,
+          message: `Successfully authenticated! Welcome to ProctorAI.`,
         });
         setTimeout(() => {
           router.push(`/${data.role}/dashboard`);
@@ -241,7 +241,7 @@ export default function LoginPage() {
               <div className="p-3 bg-primary/15 rounded-2xl border border-primary/25">
                 <Shield className="h-8 w-8 text-primary animate-pulse" />
               </div>
-              <span className="font-extrabold text-2xl tracking-tight">VeriExam.AI</span>
+              <span className="font-extrabold text-2xl tracking-tight">ProctorAI</span>
             </motion.div>
 
             <div className="space-y-4">
@@ -249,7 +249,7 @@ export default function LoginPage() {
                 Secure Examinations Powered by Real-Time AI.
               </h2>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Log in to enter your isolated exam workspace. Our platform leverages face detection and activity monitors to ensure a balanced, high-integrity assessment environment.
+                ProctorAI is a secure AI-powered online examination platform featuring intelligent proctoring, automated evaluation, and comprehensive exam management.
               </p>
             </div>
 

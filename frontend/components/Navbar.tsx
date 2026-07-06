@@ -54,7 +54,7 @@ export default function Navbar({ className }: NavbarProps) {
               <ShieldCheck className="h-6 w-6 text-primary" />
             </div>
             <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-foreground/75 bg-clip-text">
-              VeriExam<span className="text-primary font-extrabold">.AI</span>
+              ProctorAI
             </span>
           </Link>
 

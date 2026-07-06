@@ -7,7 +7,7 @@ from app.database import get_db
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    description="Backend API for AI-Proctored Online Examination Platform",
+    description="Backend API for ProctorAI - AI-Powered Online Examination Platform",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -39,7 +39,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/", tags=["Health Check"])
 async def root():
     return {
-        "message": "Welcome to AI-Proctored Online Examination Platform API",
+        "message": "Welcome to ProctorAI API",
         "docs": "/docs",
         "status": "healthy"
     }
