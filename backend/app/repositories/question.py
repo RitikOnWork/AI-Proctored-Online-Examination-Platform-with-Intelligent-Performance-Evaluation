@@ -38,7 +38,7 @@ class QuestionRepository(BaseRepository[QuestionBank]):
             db_obj.options.append(QuestionOptions(**opt))
 
         self.db.add(db_obj)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(db_obj)
         
         # Eager load options on return
@@ -68,7 +68,7 @@ class QuestionRepository(BaseRepository[QuestionBank]):
                 setattr(db_obj, field, update_data[field])
 
         self.db.add(db_obj)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(db_obj)
 
         return await self.get_question_by_id(db_obj.id)

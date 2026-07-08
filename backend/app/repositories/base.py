@@ -36,7 +36,7 @@ class BaseRepository(Generic[ModelType]):
         
         db_obj = self.model(**obj_in_data)
         self.db.add(db_obj)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(db_obj)
         return db_obj
 
@@ -54,7 +54,7 @@ class BaseRepository(Generic[ModelType]):
                 setattr(db_obj, field, update_data[field])
         
         self.db.add(db_obj)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(db_obj)
         return db_obj
 
@@ -63,5 +63,5 @@ class BaseRepository(Generic[ModelType]):
         obj = await self.db.get(self.model, id)
         if obj:
             await self.db.delete(obj)
-            await self.db.flush()
+            await self.db.commit()
         return obj

@@ -1,6 +1,6 @@
 import uuid
-from typing import TYPE_CHECKING
-from sqlalchemy import ForeignKey, Text, Boolean, Numeric, UniqueConstraint
+from typing import TYPE_CHECKING, List
+from sqlalchemy import ForeignKey, Text, Boolean, Numeric, UniqueConstraint, Table, Column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
@@ -8,6 +8,24 @@ from app.models.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.exam_sessions import ExamSession
     from app.models.question_bank import QuestionBank, QuestionOptions
+
+
+answer_option_association = Table(
+    "answer_option_association",
+    Base.metadata,
+    Column(
+        "answer_id",
+        UUID(as_uuid=True),
+        ForeignKey("answer.id", ondelete="CASCADE"),
+        primary_key=True
+    ),
+    Column(
+        "option_id",
+        UUID(as_uuid=True),
+        ForeignKey("question_options.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+)
 
 
 class Answer(Base, TimestampMixin):
@@ -65,6 +83,12 @@ class Answer(Base, TimestampMixin):
     selected_option: Mapped["QuestionOptions"] = relationship(
         "QuestionOptions"
     )
+    selected_options: Mapped[List["QuestionOptions"]] = relationship(
+        "QuestionOptions",
+        secondary=answer_option_association,
+        lazy="selectin"
+    )
 
     def __repr__(self) -> str:
         return f"<Answer Session={self.session_id} Question={self.question_id} Score={self.score_obtained}>"
+

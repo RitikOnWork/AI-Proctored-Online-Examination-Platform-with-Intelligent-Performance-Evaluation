@@ -1,5 +1,6 @@
 import uuid
-from fastapi import Depends, HTTPException, status
+from typing import Optional
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.settings import settings
@@ -62,4 +63,55 @@ class RoleChecker:
 get_current_admin = RoleChecker(["admin"])
 get_current_examiner = RoleChecker(["examiner"])
 get_current_student = RoleChecker(["student"])
+
+
+async def verify_exam_token(
+    exam_id: uuid.UUID,
+    x_exam_token: Optional[str] = Header(None, alias="X-Exam-Token"),
+    current_user: User = Depends(get_current_user)
+) -> Optional[str]:
+    """
+    If the user is a student, verify the exam token bindings:
+    - Valid signature & exp
+    - Binds student_id and exam_id
+    If user is examiner or admin, bypass verification.
+    """
+    if current_user.role.value in ["admin", "examiner"]:
+        return x_exam_token
+        
+    if current_user.role.value != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only students, examiners, and admins can view the exam paper."
+        )
+
+    if not x_exam_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Exam access token is required to start this exam."
+        )
+        
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired exam token.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    payload = verify_token(x_exam_token)
+    if not payload or payload.get("type") != "exam_entry":
+        raise credentials_exception
+
+    token_sub = payload.get("sub")
+    token_exam_id = payload.get("exam_id")
+
+    if not token_sub or not token_exam_id:
+        raise credentials_exception
+
+    if token_sub != str(current_user.id) or token_exam_id != str(exam_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to access this exam session."
+        )
+
+    return x_exam_token
 

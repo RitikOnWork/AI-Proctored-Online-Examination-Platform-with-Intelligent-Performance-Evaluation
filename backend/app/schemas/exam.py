@@ -59,6 +59,7 @@ class ExamBase(BaseModel):
     start_time: Optional[datetime.datetime] = Field(default=None)
     end_time: Optional[datetime.datetime] = Field(default=None)
     is_published: bool = Field(default=False)
+    question_count: Optional[int] = Field(default=None, ge=1, description="Total questions for this exam")
 
 
 class ExamCreate(ExamBase):
@@ -76,6 +77,7 @@ class ExamUpdate(BaseModel):
     is_published: Optional[bool] = None
     subject_id: Optional[uuid.UUID] = None
     settings: Optional[ExamSettingsUpdate] = None
+    question_count: Optional[int] = Field(None, ge=1)
 
 
 class ExamResponse(ExamBase):

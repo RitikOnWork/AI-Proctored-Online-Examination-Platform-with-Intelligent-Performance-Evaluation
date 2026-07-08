@@ -1,7 +1,8 @@
 import enum
 import uuid
-from typing import List, TYPE_CHECKING
-from sqlalchemy import String, Boolean, Enum
+from typing import List, Optional, TYPE_CHECKING
+import datetime
+from sqlalchemy import String, Boolean, Enum, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
@@ -48,6 +49,15 @@ class User(Base, TimestampMixin):
         Boolean,
         default=True,
         nullable=False
+    )
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+    deleted_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
     )
 
     # Relationships

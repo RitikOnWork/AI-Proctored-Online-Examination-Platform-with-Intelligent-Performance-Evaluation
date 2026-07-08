@@ -46,7 +46,7 @@ class ExamRepository(BaseRepository[Exam]):
             db_obj.settings = ExamSettings()
 
         self.db.add(db_obj)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(db_obj)
 
         return await self.get_exam_by_id(db_obj.id)
@@ -74,7 +74,7 @@ class ExamRepository(BaseRepository[Exam]):
                 setattr(db_obj, field, update_data[field])
 
         self.db.add(db_obj)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(db_obj)
 
         return await self.get_exam_by_id(db_obj.id)
@@ -135,7 +135,7 @@ class ExamRepository(BaseRepository[Exam]):
             self.db.add(db_obj)
             db_objs.append(db_obj)
         
-        await self.db.flush()
+        await self.db.commit()
         return db_objs
 
     async def get_exam_questions_eager(self, exam_id: uuid.UUID) -> List[ExamQuestion]:

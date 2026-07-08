@@ -8,7 +8,7 @@ from app.schemas.exam import ExamCreate, ExamUpdate, ExamResponse, ExamQuestions
 from app.schemas.question import QuestionResponse
 from app.repositories.exam import ExamRepository
 from app.services.exam import ExamService
-from app.dependencies.auth import get_current_user, get_current_examiner, get_current_student
+from app.dependencies.auth import get_current_user, get_current_examiner, get_current_student, verify_exam_token
 from app.core.security import create_exam_token
 
 router = APIRouter(prefix="/exams", tags=["Exam Configuration Management"])
@@ -146,7 +146,8 @@ async def assign_exam_questions(
 async def get_exam_paper(
     exam_id: uuid.UUID,
     exam_service: ExamService = Depends(get_exam_service),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _token: Optional[str] = Depends(verify_exam_token)
 ):
     return await exam_service.generate_student_paper(exam_id, current_user.id)
 

@@ -1,7 +1,8 @@
 import enum
 import uuid
 from typing import List, Optional, TYPE_CHECKING
-from sqlalchemy import ForeignKey, String, Text, Boolean, Integer, Enum, Numeric
+import datetime
+from sqlalchemy import ForeignKey, String, Text, Boolean, Integer, Enum, Numeric, DateTime
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
@@ -77,6 +78,15 @@ class QuestionBank(Base, TimestampMixin):
     )
     explanation: Mapped[Optional[str]] = mapped_column(
         Text,
+        nullable=True
+    )
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+    deleted_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True),
         nullable=True
     )
 

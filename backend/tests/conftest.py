@@ -32,21 +32,19 @@ async def cleanup_database_engine():
 @pytest_asyncio.fixture
 async def db_session():
     """
-    Yields an AsyncSession wrapped in a transaction that is rolled back 
+    Yields an AsyncSession wrapped in a connection-level transaction that is rolled back 
     upon test completion to keep the database clean and isolated.
     """
-    TestingSessionLocal = async_sessionmaker(
-        bind=testing_engine,
-        expire_on_commit=False,
-        class_=AsyncSession
-    )
-    async with TestingSessionLocal() as session:
-        async with session.begin():
+    async with testing_engine.connect() as connection:
+        transaction = await connection.begin()
+        TestingSessionLocal = async_sessionmaker(
+            bind=connection,
+            expire_on_commit=False,
+            class_=AsyncSession
+        )
+        async with TestingSessionLocal() as session:
             yield session
-            # Rollback transaction so tests don't pollute database
-            await session.rollback()
-        # Explicitly close to release resources immediately within the active loop
-        await session.close()
+        await transaction.rollback()
 
 
 @pytest_asyncio.fixture

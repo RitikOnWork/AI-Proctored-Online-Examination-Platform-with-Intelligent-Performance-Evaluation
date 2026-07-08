@@ -76,13 +76,35 @@ async def upload_image(
             detail="File size exceeds the 5MB limit."
         )
 
+    # Validate image magic bytes (signature)
+    is_valid_image = False
+    if contents.startswith(b"\xff\xd8\xff"):
+        is_valid_image = True  # JPEG
+    elif contents.startswith(b"\x89PNG\r\n\x1a\n"):
+        is_valid_image = True  # PNG
+    elif contents.startswith(b"GIF87a") or contents.startswith(b"GIF89a"):
+        is_valid_image = True  # GIF
+    elif contents.startswith(b"RIFF") and b"WEBP" in contents[8:14]:
+        is_valid_image = True  # WEBP
+
+    if not is_valid_image:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File content signature is not a valid image format. Only JPEG, PNG, GIF, and WEBP images are allowed."
+        )
+
     # Generate unique filename
     unique_filename = f"{uuid.uuid4().hex}{ext}"
     filepath = os.path.join("static", "uploads", unique_filename)
 
-    # Save to disk
-    with open(filepath, "wb") as f:
-        f.write(contents)
+    # Save to disk in a non-blocking thread pool
+    import anyio
+    
+    def save_file_sync():
+        with open(filepath, "wb") as f:
+            f.write(contents)
+            
+    await anyio.to_thread.run_sync(save_file_sync)
 
     # Return access URL path
     return {

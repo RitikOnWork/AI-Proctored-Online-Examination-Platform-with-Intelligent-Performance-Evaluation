@@ -111,6 +111,12 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
+        const resData = await res.json();
+        localStorage.setItem("access_token", resData.access_token);
+        localStorage.setItem("refresh_token", resData.refresh_token);
+        localStorage.setItem("user_role", data.role);
+        localStorage.setItem("user_email", data.email);
+
         setIsLoading(false);
         setToast({
           type: "success",
@@ -144,6 +150,11 @@ export default function LoginPage() {
         message: `Invalid credentials for the ${data.role.toUpperCase()} role. Please verify your inputs.`,
       });
     } else {
+      localStorage.setItem("access_token", "mock_access_token_" + data.role);
+      localStorage.setItem("refresh_token", "mock_refresh_token_" + data.role);
+      localStorage.setItem("user_role", data.role);
+      localStorage.setItem("user_email", data.email);
+
       setToast({
         type: "success",
         message: `Mock login successful as ${data.role.toUpperCase()}! Redirecting...`,

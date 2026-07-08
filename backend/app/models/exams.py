@@ -64,6 +64,19 @@ class Exam(Base, TimestampMixin):
         default=False,
         nullable=False
     )
+    question_count: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        nullable=True
+    )
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False
+    )
+    deleted_at: Mapped[Optional[datetime.datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
 
     # Relationships
     subject: Mapped["Subject"] = relationship(

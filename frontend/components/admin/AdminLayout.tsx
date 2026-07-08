@@ -10,6 +10,8 @@ import NotificationPanel from "@/components/admin/NotificationPanel";
 import { QuestionBankSummary, ProctoringStatsSummary, ResultStatsSummary } from "@/components/admin/SummaryPanels";
 import { RecentStudentsTable, RecentExaminersTable, PendingEvaluationsTable, RecentProctorEventsTable } from "@/components/admin/DataTables";
 import ExamManagement from "@/components/admin/ExamManagement";
+import QuestionBankEditor from "@/components/admin/QuestionBankEditor";
+import ExamConfigurator from "@/components/admin/ExamConfigurator";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
 
 // Placeholder for sections not yet built
@@ -53,10 +55,10 @@ function AdminContent() {
       case "exams":         return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Exam Management</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage upcoming, live, completed, and cancelled exams</p>
+            <h1 className="text-xl font-bold text-foreground">Exam Configurations</h1>
+            <p className="text-sm text-muted-foreground mt-1">Configure timings, schedule access windows, set proctor rules, and build papers</p>
           </div>
-          <ExamManagement />
+          <ExamConfigurator />
         </motion.div>
       );
       case "students":      return (
@@ -103,10 +105,10 @@ function AdminContent() {
       case "question-bank": return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Question Bank</h1>
-            <p className="text-sm text-muted-foreground mt-1">All questions by type and difficulty level</p>
+            <h1 className="text-xl font-bold text-foreground">Question Bank Manager</h1>
+            <p className="text-sm text-muted-foreground mt-1">Configure academic assessment questions, answers, and image attachments</p>
           </div>
-          <QuestionBankSummary />
+          <QuestionBankEditor />
         </motion.div>
       );
       case "admins":        return <PlaceholderSection title="Admins"        desc="Manage admin accounts and permissions"              />;

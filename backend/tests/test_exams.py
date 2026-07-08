@@ -99,19 +99,27 @@ async def test_deterministic_random_paper_generation(client, create_token):
     res = await client.post(f"/api/v1/exams/{exam_id}/questions", json=assign_payload, headers={"Authorization": f"Bearer {examiner_token}"})
     assert res.status_code == 200
 
-    # 1. Student A gets paper (First fetch)
-    res = await client.get(f"/api/v1/exams/{exam_id}/paper", headers={"Authorization": f"Bearer {student_a_token}"})
+    # 1. Student A enters exam and gets paper (First fetch)
+    res_entry_a = await client.post(f"/api/v1/exams/{exam_id}/enter", headers={"Authorization": f"Bearer {student_a_token}"})
+    assert res_entry_a.status_code == 200
+    token_a = res_entry_a.json()["exam_token"]
+
+    res = await client.get(f"/api/v1/exams/{exam_id}/paper", headers={"Authorization": f"Bearer {student_a_token}", "X-Exam-Token": token_a})
     assert res.status_code == 200
     paper_a1 = [q["id"] for q in res.json()]
 
-    # 2. Student A gets paper (Second fetch)
-    res = await client.get(f"/api/v1/exams/{exam_id}/paper", headers={"Authorization": f"Bearer {student_a_token}"})
+    # 2. Student A gets paper again (Second fetch)
+    res = await client.get(f"/api/v1/exams/{exam_id}/paper", headers={"Authorization": f"Bearer {student_a_token}", "X-Exam-Token": token_a})
     assert res.status_code == 200
     paper_a2 = [q["id"] for q in res.json()]
     assert paper_a1 == paper_a2, "Paper generation for same student must be identical!"
 
-    # 3. Student B gets paper (Should be shuffled differently)
-    res = await client.get(f"/api/v1/exams/{exam_id}/paper", headers={"Authorization": f"Bearer {student_b_token}"})
+    # 3. Student B enters exam and gets paper (Should be shuffled differently)
+    res_entry_b = await client.post(f"/api/v1/exams/{exam_id}/enter", headers={"Authorization": f"Bearer {student_b_token}"})
+    assert res_entry_b.status_code == 200
+    token_b = res_entry_b.json()["exam_token"]
+
+    res = await client.get(f"/api/v1/exams/{exam_id}/paper", headers={"Authorization": f"Bearer {student_b_token}", "X-Exam-Token": token_b})
     assert res.status_code == 200
     paper_b = [q["id"] for q in res.json()]
     assert paper_a1 != paper_b, "Paper generation for different students must produce different orderings!"

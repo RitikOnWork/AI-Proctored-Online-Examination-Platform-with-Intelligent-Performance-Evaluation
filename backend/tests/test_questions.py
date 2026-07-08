@@ -78,7 +78,7 @@ async def test_image_upload(client, create_token):
     examiner_token = await create_token(f"examiner_{uuid.uuid4().hex[:6]}@example.com", "examiner")
 
     # 1. Valid image upload
-    files = {"file": ("test.png", b"fake-image-bytes", "image/png")}
+    files = {"file": ("test.png", b"\x89PNG\r\n\x1a\nfake-image-bytes", "image/png")}
     res = await client.post(
         "/api/v1/questions/upload-image",
         files=files,
@@ -98,7 +98,7 @@ async def test_image_upload(client, create_token):
     assert res.status_code == 400
 
     # 3. Oversized file
-    oversized_data = b"x" * (5 * 1024 * 1024 + 10)
+    oversized_data = b"\x89PNG\r\n\x1a\n" + b"x" * (5 * 1024 * 1024 + 10)
     files = {"file": ("large.png", oversized_data, "image/png")}
     res = await client.post(
         "/api/v1/questions/upload-image",
