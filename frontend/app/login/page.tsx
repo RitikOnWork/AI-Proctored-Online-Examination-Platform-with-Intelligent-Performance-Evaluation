@@ -117,6 +117,12 @@ export default function LoginPage() {
         localStorage.setItem("user_role", data.role);
         localStorage.setItem("user_email", data.email);
 
+        // Store cookies for server-side Next.js middleware compatibility
+        const maxAge = data.rememberMe ? 60 * 60 * 24 * 7 : 3600; // 7 days or 1 hour
+        document.cookie = `access_token=${resData.access_token}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+        document.cookie = `user_role=${data.role}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+        document.cookie = `user_email=${data.email}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+
         setIsLoading(false);
         setToast({
           type: "success",
@@ -150,10 +156,19 @@ export default function LoginPage() {
         message: `Invalid credentials for the ${data.role.toUpperCase()} role. Please verify your inputs.`,
       });
     } else {
-      localStorage.setItem("access_token", "mock_access_token_" + data.role);
-      localStorage.setItem("refresh_token", "mock_refresh_token_" + data.role);
+      const mockAccessToken = "mock_access_token_" + data.role;
+      const mockRefreshToken = "mock_refresh_token_" + data.role;
+      
+      localStorage.setItem("access_token", mockAccessToken);
+      localStorage.setItem("refresh_token", mockRefreshToken);
       localStorage.setItem("user_role", data.role);
       localStorage.setItem("user_email", data.email);
+
+      // Set cookies for mock login path
+      const maxAge = data.rememberMe ? 60 * 60 * 24 * 7 : 3600;
+      document.cookie = `access_token=${mockAccessToken}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+      document.cookie = `user_role=${data.role}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+      document.cookie = `user_email=${data.email}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
 
       setToast({
         type: "success",

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
+import QueryProvider from "@/providers/QueryProvider";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -20,7 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${outfit.variable} dark`}>
       <body className="antialiased bg-background text-foreground min-h-screen">
-        {children}
+        <QueryProvider>{children}</QueryProvider>
       </body>
     </html>
   );

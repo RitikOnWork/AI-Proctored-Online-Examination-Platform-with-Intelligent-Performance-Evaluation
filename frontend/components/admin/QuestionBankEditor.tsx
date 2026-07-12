@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Edit2, Search, Upload, Check, AlertCircle, X } from "lucide-react";
+import { motion } from "framer-motion";
 
 type Option = {
   id?: string;

@@ -11,13 +11,7 @@ import {
   LayoutDashboard,
   Lock,
   ArrowRight,
-  Sparkles,
-  Users,
-  Award,
-  Zap,
-  CheckCircle2,
-  Terminal,
-  Activity
+  Sparkles
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import { cn } from "@/lib/utils";
@@ -91,12 +85,12 @@ export default function Home() {
       <main className="flex-1 pt-24">
         
         {/* SECTION 1: HERO SECTION */}
-        <section id="home" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 relative">
-          <div className="grid lg:grid-cols-12 gap-12 items-center">
+        <section id="home" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-32 relative text-center">
+          <div className="flex flex-col items-center">
             
-            {/* Left Content Stagger Actions */}
+            {/* Centered Content Stagger Actions */}
             <motion.div
-              className="lg:col-span-7 space-y-6 text-left"
+              className="space-y-8 flex flex-col items-center max-w-3xl"
               initial="hidden"
               animate="visible"
               variants={containerVariants}
@@ -112,7 +106,7 @@ export default function Home() {
 
               <motion.h1
                 variants={itemVariants}
-                className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.08] text-foreground"
+                className="text-4xl sm:text-6xl font-extrabold tracking-tight leading-[1.15] text-foreground text-center"
               >
                 ProctorAI <br />
                 <span className="bg-gradient-to-r from-primary via-violet-500 to-accent bg-clip-text text-transparent">
@@ -122,13 +116,13 @@ export default function Home() {
 
               <motion.p
                 variants={itemVariants}
-                className="text-base sm:text-lg text-muted-foreground max-w-xl leading-relaxed"
+                className="text-base sm:text-lg text-muted-foreground max-w-2xl leading-relaxed text-center"
               >
                 ProctorAI is a secure AI-powered online examination platform featuring intelligent proctoring, automated evaluation, and comprehensive exam management.
               </motion.p>
 
               {/* CTAs */}
-              <motion.div variants={itemVariants} className="flex flex-wrap gap-4 pt-4">
+              <motion.div variants={itemVariants} className="flex justify-center gap-4 pt-4">
                 <Link
                   href="/login"
                   className="inline-flex items-center justify-center px-6 py-3.5 text-sm font-semibold text-primary-foreground bg-primary hover:bg-primary/95 transition-all duration-200 rounded-xl shadow-lg shadow-primary/25 hover:shadow-primary/35 hover:scale-[1.02] group"
@@ -142,74 +136,6 @@ export default function Home() {
                 >
                   Login
                 </Link>
-              </motion.div>
-            </motion.div>
-
-            {/* Right Side: Continuous Floating Console Mockup */}
-            <motion.div
-              className="lg:col-span-5 relative"
-              initial={{ opacity: 0, scale: 0.92, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-            >
-              {/* Soft background glow */}
-              <div className="absolute inset-0 bg-primary/10 rounded-3xl blur-3xl -z-10" />
-              
-              {/* Floating Wrapper */}
-              <motion.div
-                className="relative border border-border/40 rounded-2xl bg-card/65 backdrop-blur-md p-6 flex flex-col gap-6 shadow-2xl"
-                animate={{
-                  y: [0, -12, 0]
-                }}
-                transition={{
-                  duration: 6,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              >
-                {/* Mockup Header */}
-                <div className="flex items-center justify-between border-b border-border/40 pb-4">
-                  <div className="flex items-center space-x-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
-                    <span className="font-semibold text-foreground text-xs sm:text-sm">Proctor Telemetry Console</span>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full font-mono uppercase tracking-wide">
-                    Live Session Active
-                  </span>
-                </div>
-
-                {/* Grid Status */}
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { title: "Gaze Tracking", value: "Centered (98.4%)", color: "text-primary", icon: Activity },
-                    { title: "Browser Guard", value: "Locked (Tabs: 0)", color: "text-violet-500", icon: Cpu },
-                    { title: "Face Count", value: "1 Active Candidate", color: "text-accent", icon: Users },
-                    { title: "AI Evaluation", value: "Evaluating", color: "text-emerald-500", icon: Terminal }
-                  ].map((stat, idx) => (
-                    <motion.div
-                      key={idx}
-                      className="bg-muted/30 border border-border/20 rounded-xl p-4 flex flex-col gap-2 cursor-pointer transition-colors hover:bg-muted/50"
-                      whileHover={{ scale: 1.04 }}
-                    >
-                      <div className="text-muted-foreground text-xs flex items-center gap-1.5 font-medium">
-                        <stat.icon className={cn("w-3.5 h-3.5", stat.color)} />
-                        {stat.title}
-                      </div>
-                      <div className="text-sm sm:text-base font-bold text-foreground">{stat.value}</div>
-                    </motion.div>
-                  ))}
-                </div>
-
-                {/* Notification */}
-                <motion.div 
-                  className="bg-primary/5 border border-primary/10 rounded-xl p-4 flex items-start gap-3"
-                  whileHover={{ scale: 1.02 }}
-                >
-                  <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                  <div className="text-xs text-foreground/80 leading-relaxed">
-                    <strong>Real-time proctoring:</strong> Deep learning networks monitor candidate compliance dynamically.
-                  </div>
-                </motion.div>
               </motion.div>
             </motion.div>
           </div>
@@ -359,78 +285,6 @@ export default function Home() {
                   </div>
                 )}
               </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* SECTION 4: STATISTICS SECTION */}
-        <section className="bg-primary/5 py-16 border-y border-primary/10 relative overflow-hidden">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-8 relative z-10">
-            {[
-              { label: "Students Served", value: "1,000+" },
-              { label: "Exams Managed", value: "100+" },
-              { label: "Secure Sessions", value: "99.9%" },
-              { label: "Evaluation Mode", value: "AI Powered" }
-            ].map((stat, idx) => (
-              <motion.div
-                key={idx}
-                className="text-center space-y-2"
-                initial={{ opacity: 0, scale: 0.85 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ type: "spring", stiffness: 100, damping: 12, delay: idx * 0.08 }}
-              >
-                <motion.div 
-                  className="text-3xl sm:text-5xl font-extrabold text-primary font-mono tracking-tight"
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", delay: idx * 0.5 }}
-                >
-                  {stat.value}
-                </motion.div>
-                <p className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">
-                  {stat.label}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* SECTION 5: TECHNOLOGY STACK */}
-        <section className="py-20 md:py-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-10">
-          <motion.div
-            className="space-y-3"
-            initial={{ opacity: 0, y: 15 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <h2 className="text-2xl font-bold text-foreground">Engineered with Modern Technologies</h2>
-            <p className="text-muted-foreground text-sm max-w-md mx-auto">
-              Our microservice platform leverages top-tier frameworks and libraries to deliver high throughput and low-latency validation.
-            </p>
-          </motion.div>
-
-          <div className="flex flex-wrap justify-center gap-3 max-w-3xl mx-auto">
-            {[
-              "FastAPI",
-              "Next.js 15",
-              "PostgreSQL",
-              "MediaPipe",
-              "TensorFlow.js",
-              "OpenAI API",
-              "TypeScript",
-              "Tailwind CSS",
-              "SQLAlchemy 2.0",
-              "Framer Motion"
-            ].map((tech, idx) => (
-              <motion.span
-                key={idx}
-                className="px-4 py-2 rounded-xl text-sm font-semibold border border-border/40 bg-card text-foreground cursor-default select-none shadow-sm hover:border-primary/45 transition-colors"
-                whileHover={{ scale: 1.08, rotate: [0, 1.5, -1.5, 0] }}
-                transition={{ duration: 0.2 }}
-              >
-                {tech}
-              </motion.span>
             ))}
           </div>
         </section>
