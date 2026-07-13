@@ -13,6 +13,7 @@ import ExamManagement from "@/components/admin/ExamManagement";
 import QuestionBankEditor from "@/components/admin/QuestionBankEditor";
 import ExamConfigurator from "@/components/admin/ExamConfigurator";
 import { SidebarProvider, useSidebar } from "@/lib/sidebar-context";
+import UserManagement from "@/components/admin/UserManagement";
 
 // Placeholder for sections not yet built
 function PlaceholderSection({ title, desc }: { title: string; desc: string }) {
@@ -63,20 +64,12 @@ function AdminContent() {
       );
       case "students":      return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Students</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage all registered students</p>
-          </div>
-          <RecentStudentsTable />
+          <UserManagement roleFilter="student" />
         </motion.div>
       );
       case "examiners":     return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-          <div>
-            <h1 className="text-xl font-bold text-foreground">Examiners</h1>
-            <p className="text-sm text-muted-foreground mt-1">Manage all examiners and their assignments</p>
-          </div>
-          <RecentExaminersTable />
+          <UserManagement roleFilter="examiner" />
         </motion.div>
       );
       case "results":       return (
@@ -111,7 +104,11 @@ function AdminContent() {
           <QuestionBankEditor />
         </motion.div>
       );
-      case "admins":        return <PlaceholderSection title="Admins"        desc="Manage admin accounts and permissions"              />;
+      case "admins":        return (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          <UserManagement roleFilter="admin" />
+        </motion.div>
+      );
       case "subjects":      return <PlaceholderSection title="Subjects"      desc="Configure academic subjects and categories"          />;
       case "exam-sessions": return <PlaceholderSection title="Exam Sessions" desc="View live and historical exam session data"           />;
       default:              return <DashboardOverview />;

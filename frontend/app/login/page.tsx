@@ -17,7 +17,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   UserCheck,
-  User
+  User,
+  Info,
+  KeyRound
 } from "lucide-react";
 import Link from "next/link";
 
@@ -47,7 +49,7 @@ const registerSchema = z.object({
     .string()
     .min(8, "Password must be at least 8 characters")
     .max(128, "Password must be under 128 characters"),
-  role: z.enum(["student", "examiner", "admin"]),
+  role: z.enum(["student", "admin"]),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
@@ -308,7 +310,7 @@ export default function LoginPage() {
               </h1>
               <p className="text-muted-foreground text-xs sm:text-sm">
                 {isRegister 
-                  ? "Register to start configuring or taking secure examinations." 
+                  ? "Create a Student or Admin account. Examiner accounts are provisioned by the Admin." 
                   : "Enter your credentials below to access your account workspace."}
               </p>
             </div>
@@ -416,21 +418,20 @@ export default function LoginPage() {
                     <div className="space-y-2">
                       <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
                         <UserCheck className="w-3.5 h-3.5 text-primary" />
-                        Assign User Role
+                        Select Account Role
                       </label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         {[
-                          { value: "student", label: "Student" },
-                          { value: "examiner", label: "Examiner" },
-                          { value: "admin", label: "Admin" },
+                          { value: "student", label: "🎓 Student" },
+                          { value: "admin", label: "🛡️ Admin" },
                         ].map((roleOption) => (
                           <button
                             key={roleOption.value}
                             type="button"
                             onClick={() => registerForm.setValue("role", roleOption.value as any)}
-                            className={`py-2 rounded-xl text-xs font-bold border transition-all duration-200 ${
+                            className={`py-2.5 rounded-xl text-xs font-bold border transition-all duration-200 ${
                               selectedRegisterRole === roleOption.value
-                                ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/10"
+                                ? "bg-primary text-primary-foreground border-primary shadow-md shadow-primary/10 scale-[1.02]"
                                 : "bg-muted/40 text-muted-foreground border-border/30 hover:bg-muted/70 hover:text-foreground"
                             }`}
                           >
@@ -438,6 +439,26 @@ export default function LoginPage() {
                           </button>
                         ))}
                       </div>
+
+                      {/* Examiner Account Notice */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15, duration: 0.3 }}
+                        className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3.5 py-3"
+                      >
+                        <div className="mt-0.5 shrink-0 p-1 rounded-lg bg-amber-500/15">
+                          <KeyRound className="h-3.5 w-3.5 text-amber-500" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                            Examiner accounts are not self-registerable
+                          </p>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">
+                            Examiner credentials are created manually by the <span className="font-semibold text-foreground/70">Admin</span> and sent directly to the assigned Examiner via email or secure channel.
+                          </p>
+                        </div>
+                      </motion.div>
                     </div>
 
                     {/* Register Button */}

@@ -1,6 +1,6 @@
 from typing import Optional, Tuple
 from fastapi import HTTPException, status
-from app.models.users import User
+from app.models.users import User, UserRole
 from app.schemas.user import UserCreate
 from app.schemas.token import Token
 from app.repositories.user import UserRepository
@@ -16,6 +16,12 @@ class AuthService:
         Registers a new user inside the system.
         Raises HTTPException if user email already exists.
         """
+        if user_in.role == UserRole.EXAMINER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Examiner accounts cannot be registered publicly. They must be created manually by an Administrator."
+            )
+
         existing_user = await self.user_repo.get_by_email(user_in.email)
         if existing_user:
             raise HTTPException(
