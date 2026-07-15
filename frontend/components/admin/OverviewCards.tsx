@@ -6,7 +6,7 @@ import {
   GraduationCap, UserCheck, ClipboardList, Play, BookOpen,
   CheckCircle, Clock, AlertTriangle, TrendingUp, TrendingDown
 } from "lucide-react";
-import { overviewStats } from "@/lib/mock-data";
+import { OverviewStat } from "@/services/dashboard";
 
 const iconMap: Record<string, React.ElementType> = {
   GraduationCap, UserCheck, ClipboardList, Play, BookOpen,
@@ -25,10 +25,11 @@ const colorMap: Record<string, { icon: string; iconBg: string; badge: string; ba
   red:     { icon: "text-destructive",    iconBg: "bg-destructive/10 border-destructive/20",badge: "bg-destructive/10 text-destructive border-destructive/20",   bar: "bg-destructive/50"      },
 };
 
-export default function OverviewCards() {
+export default function OverviewCards({ data }: { data: OverviewStat[] }) {
+  const statsList = data || [];
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {overviewStats.map((stat, i) => {
+      {statsList.map((stat, i) => {
         const Icon = iconMap[stat.icon] ?? ClipboardList;
         const c = colorMap[stat.color] ?? colorMap.indigo;
         const isPositive = stat.change >= 0;

@@ -2,7 +2,6 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { questionBankSummary, proctoringStats, resultSummary } from "@/lib/mock-data";
 import { BookOpen, Eye, BarChart3, Award, AlertTriangle, CheckCircle2, XCircle, Clock } from "lucide-react";
 
 function SummaryCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
@@ -58,22 +57,27 @@ function ProgressRow({ label, count, total, color }: { label: string; count: num
   );
 }
 
-export function QuestionBankSummary() {
+export function QuestionBankSummary({ data }: { data?: any }) {
+  const summary = data || { total: 0, byType: [], byDifficulty: [] };
+  const total = summary.total || 0;
+  const byType = summary.byType || [];
+  const byDifficulty = summary.byDifficulty || [];
+
   return (
     <SummaryCard title="Question Bank" icon={BookOpen}>
       <div className="mb-4">
-        <p className="text-3xl font-extrabold text-foreground">{questionBankSummary.total.toLocaleString()}</p>
+        <p className="text-3xl font-extrabold text-foreground">{total.toLocaleString()}</p>
         <p className="text-xs text-muted-foreground mt-0.5">Total questions in bank</p>
       </div>
       <div className="space-y-3 mb-5">
-        {questionBankSummary.byType.map((q) => (
-          <ProgressRow key={q.type} label={q.type} count={q.count} total={questionBankSummary.total} color={q.color} />
+        {byType.map((q: any) => (
+          <ProgressRow key={q.type} label={q.type} count={q.count} total={total} color={q.color} />
         ))}
       </div>
       <div className="border-t border-border/40 pt-4">
         <p className="text-xs text-muted-foreground mb-3 font-medium">Difficulty Distribution</p>
         <div className="flex gap-2">
-          {questionBankSummary.byDifficulty.map((d) => (
+          {byDifficulty.map((d: any) => (
             <div key={d.level} className="flex-1 text-center p-2.5 rounded-xl bg-muted/50 border border-border/30">
               <p className="text-sm font-extrabold" style={{ color: d.color }}>{d.pct}%</p>
               <p className="text-[10px] text-muted-foreground mt-0.5">{d.level}</p>
@@ -85,8 +89,15 @@ export function QuestionBankSummary() {
   );
 }
 
-export function ProctoringStatsSummary() {
-  const p = proctoringStats;
+export function ProctoringStatsSummary({ data }: { data?: any }) {
+  const p = data || {
+    totalSessions: 0,
+    suspiciousSessions: 0,
+    multipleFaceAlerts: 0,
+    faceMissingAlerts: 0,
+    tabSwitchEvents: 0,
+    avgSuspicionScore: 0
+  };
   return (
     <SummaryCard title="Proctoring Summary" icon={Eye}>
       <div className="space-y-0">
@@ -101,7 +112,7 @@ export function ProctoringStatsSummary() {
         <div className="flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
           <p className="text-xs text-destructive font-medium">
-            {Math.round((p.suspiciousSessions / p.totalSessions) * 100)}% sessions flagged as suspicious
+            {p.totalSessions > 0 ? Math.round((p.suspiciousSessions / p.totalSessions) * 100) : 0}% sessions flagged as suspicious
           </p>
         </div>
       </div>
@@ -109,9 +120,16 @@ export function ProctoringStatsSummary() {
   );
 }
 
-export function ResultStatsSummary() {
-  const r = resultSummary;
-  const total = r.passed + r.failed;
+export function ResultStatsSummary({ data }: { data?: any }) {
+  const r = data || {
+    passed: 0,
+    failed: 0,
+    pendingManual: 0,
+    avgScore: 0,
+    highestScore: 0,
+    lowestScore: 0
+  };
+  const total = (r.passed + r.failed) || 1;
   return (
     <SummaryCard title="Result Summary" icon={BarChart3}>
       <div className="grid grid-cols-2 gap-2 mb-4">

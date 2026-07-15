@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Edit2, Search, Upload, Check, AlertCircle, X } from "lucide-react";
 import { motion } from "framer-motion";
+import { api } from "../../services/api";
 
 type Option = {
   id?: string;
@@ -57,6 +58,65 @@ export default function QuestionBankEditor() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  // AI PDF Import State
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [pdfSubjectId, setPdfSubjectId] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+  const [pdfSuccess, setPdfSuccess] = useState("");
+  const [pdfImportErrors, setPdfImportErrors] = useState<string[]>([]);
+
+  const handlePdfUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pdfSubjectId) {
+      setPdfError("Please select a target subject.");
+      return;
+    }
+    if (!pdfFile) {
+      setPdfError("Please select a PDF file.");
+      return;
+    }
+
+    setPdfUploading(true);
+    setPdfError("");
+    setPdfSuccess("");
+    setPdfImportErrors([]);
+
+    const formDataUpload = new FormData();
+    formDataUpload.append("file", pdfFile);
+    formDataUpload.append("subject_id", pdfSubjectId);
+
+    try {
+      const res = await api.post("/questions/import-pdf", formDataUpload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      const result = res.data;
+      setPdfSuccess(result.message || "Successfully imported questions!");
+      setPdfFile(null);
+      setPdfImportErrors(result.errors || []);
+      fetchQuestions();
+
+      if (!result.errors || result.errors.length === 0) {
+        setTimeout(() => {
+          setIsPdfModalOpen(false);
+          setPdfSuccess("");
+          setPdfImportErrors([]);
+        }, 2200);
+      }
+    } catch (err: any) {
+      if (err.response && err.response.data) {
+        setPdfError(err.response.data.detail || "Failed to process PDF.");
+      } else {
+        setPdfError("PDF processing failed due to server error.");
+      }
+    } finally {
+      setPdfUploading(false);
+    }
+  };
+
   useEffect(() => {
     const savedToken = localStorage.getItem("access_token") || "";
     setToken(savedToken);
@@ -64,13 +124,8 @@ export default function QuestionBankEditor() {
 
   const fetchSubjects = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/v1/subjects", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSubjects(data);
-      }
+      const res = await api.get("/subjects");
+      setSubjects(res.data);
     } catch (err) {
       console.error("Failed to fetch subjects:", err);
     }
@@ -79,18 +134,13 @@ export default function QuestionBankEditor() {
   const fetchQuestions = async () => {
     setLoading(true);
     try {
-      let url = "http://localhost:8000/api/v1/questions?limit=100";
-      if (selectedSubject) url += `&subject_id=${selectedSubject}`;
-      if (selectedType) url += `&question_type=${selectedType}`;
-      if (selectedDifficulty) url += `&difficulty=${selectedDifficulty}`;
+      const params: any = { limit: 100 };
+      if (selectedSubject) params.subject_id = selectedSubject;
+      if (selectedType) params.question_type = selectedType;
+      if (selectedDifficulty) params.difficulty = selectedDifficulty;
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setQuestions(data);
-      }
+      const res = await api.get("/questions", { params });
+      setQuestions(res.data);
     } catch (err) {
       console.error("Failed to fetch questions:", err);
     } finally {
@@ -105,13 +155,10 @@ export default function QuestionBankEditor() {
     }
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/questions/search?q=${encodeURIComponent(search)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await api.get("/questions/search", {
+        params: { q: search }
       });
-      if (res.ok) {
-        const data = await res.json();
-        setQuestions(data);
-      }
+      setQuestions(res.data);
     } catch (err) {
       console.error("Failed to search questions:", err);
     } finally {
@@ -120,11 +167,9 @@ export default function QuestionBankEditor() {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchSubjects();
-      fetchQuestions();
-    }
-  }, [token, selectedSubject, selectedType, selectedDifficulty]);
+    fetchSubjects();
+    fetchQuestions();
+  }, [selectedSubject, selectedType, selectedDifficulty]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -143,21 +188,20 @@ export default function QuestionBankEditor() {
     uploadData.append("file", file);
 
     try {
-      const res = await fetch("http://localhost:8000/api/v1/questions/upload-image", {
-        method: "POST",
-        body: uploadData,
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await api.post("/questions/upload-image", uploadData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        setFormData((prev) => ({ ...prev, image_url: `http://localhost:8000${data.url}` }));
+      const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+      const hostUrl = apiBaseUrl.replace("/api/v1", "");
+      setFormData((prev) => ({ ...prev, image_url: `${hostUrl}${res.data.url}` }));
+    } catch (err: any) {
+      if (err.response && err.response.data) {
+        setErrorMsg(err.response.data.detail || "Failed to upload image.");
       } else {
-        const data = await res.json();
-        setErrorMsg(data.detail || "Failed to upload image.");
+        setErrorMsg("Image upload failed due to server error.");
       }
-    } catch (err) {
-      setErrorMsg("Image upload failed due to server error.");
     } finally {
       setUploadingImage(false);
     }
@@ -264,11 +308,6 @@ export default function QuestionBankEditor() {
     }
 
     try {
-      const url = editingQuestion
-        ? `http://localhost:8000/api/v1/questions/${editingQuestion.id}`
-        : "http://localhost:8000/api/v1/questions";
-      
-      const method = editingQuestion ? "PATCH" : "POST";
       const payload = {
         title: formData.title,
         question_text: formData.question_text,
@@ -282,37 +321,27 @@ export default function QuestionBankEditor() {
         image_url: formData.image_url || null,
       };
 
-      const res = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        setIsModalOpen(false);
-        fetchQuestions();
+      if (editingQuestion) {
+        await api.patch(`/questions/${editingQuestion.id}`, payload);
       } else {
-        const data = await res.json();
-        setErrorMsg(data.detail || "Failed to save question.");
+        await api.post("/questions", payload);
       }
-    } catch (err) {
-      setErrorMsg("An error occurred while saving.");
+      setIsModalOpen(false);
+      fetchQuestions();
+    } catch (err: any) {
+      if (err.response && err.response.data) {
+        setErrorMsg(err.response.data.detail || "Failed to save question.");
+      } else {
+        setErrorMsg("An error occurred while saving.");
+      }
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this question?")) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/questions/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        fetchQuestions();
-      }
+      await api.delete(`/questions/${id}`);
+      fetchQuestions();
     } catch (err) {
       console.error("Failed to delete question:", err);
     }
@@ -377,6 +406,19 @@ export default function QuestionBankEditor() {
             className="bg-primary text-primary-foreground text-sm font-semibold rounded-xl px-4 py-2 hover:bg-primary/95 transition-colors"
           >
             Search
+          </button>
+          <button
+            onClick={() => {
+              setPdfSubjectId(subjects[0]?.id || "");
+              setPdfFile(null);
+              setPdfError("");
+              setPdfSuccess("");
+              setPdfImportErrors([]);
+              setIsPdfModalOpen(true);
+            }}
+            className="bg-primary hover:bg-primary/95 text-primary-foreground text-sm font-semibold rounded-xl px-4 py-2 flex items-center gap-1.5 transition-colors"
+          >
+            <Upload className="w-4 h-4" /> AI Import PDF
           </button>
           <button
             onClick={openAddModal}
@@ -662,6 +704,125 @@ export default function QuestionBankEditor() {
                   className="bg-primary text-primary-foreground text-sm font-semibold rounded-xl px-4 py-2 hover:bg-primary/95 transition-colors"
                 >
                   Save Question
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+      {/* AI PDF Importer Modal */}
+      {isPdfModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="relative w-full max-w-md bg-card/95 backdrop-blur-xl border border-border/40 rounded-2xl p-6 shadow-2xl space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-foreground">AI PDF Importer</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Parse and add questions automatically using AI</p>
+              </div>
+              <button
+                onClick={() => setIsPdfModalOpen(false)}
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted transition-all"
+                disabled={pdfUploading}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {pdfError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-xl">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{pdfError}</span>
+              </div>
+            )}
+
+            {pdfSuccess && (
+              <div className="flex flex-col gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-xs rounded-xl shadow-inner">
+                <div className="flex items-center gap-2">
+                  <Check className="w-4 h-4 flex-shrink-0 text-emerald-500" />
+                  <span className="font-semibold">{pdfSuccess}</span>
+                </div>
+                {pdfImportErrors.length > 0 && (
+                  <div className="mt-2 border-t border-emerald-500/10 pt-2 text-[11px] text-amber-500 space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    <p className="font-medium text-amber-500/90 flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      Some questions failed validation:
+                    </p>
+                    <ul className="list-disc pl-4 space-y-1 font-mono text-[10px]">
+                      {pdfImportErrors.map((err, i) => (
+                        <li key={i} className="leading-relaxed">{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <form onSubmit={handlePdfUpload} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-muted-foreground">Target Subject</label>
+                <select
+                  value={pdfSubjectId}
+                  onChange={(e) => setPdfSubjectId(e.target.value)}
+                  className="w-full bg-muted/30 border border-border/40 text-sm rounded-xl px-3 py-2 text-foreground focus:outline-none focus:border-primary/50"
+                  required
+                  disabled={pdfUploading}
+                >
+                  <option value="" disabled>Select Subject</option>
+                  {subjects.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground">Upload Questions PDF</label>
+                <div className="border border-dashed border-border/60 hover:border-primary/40 rounded-xl p-6 text-center cursor-pointer transition-colors relative flex flex-col items-center justify-center gap-2">
+                  <Upload className="w-8 h-8 text-muted-foreground/60" />
+                  <span className="text-xs font-medium text-foreground">
+                    {pdfFile ? pdfFile.name : "Select a PDF question sheet"}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">Only .pdf supported</span>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    required
+                    onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    disabled={pdfUploading}
+                  />
+                </div>
+              </div>
+
+              {pdfUploading && (
+                <div className="flex flex-col items-center gap-2 pt-2">
+                  <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                  <p className="text-[11px] text-muted-foreground text-center">
+                    AI is parsing and validating questions... Please wait, this may take up to 20 seconds.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/20">
+                <button
+                  type="button"
+                  onClick={() => setIsPdfModalOpen(false)}
+                  className="bg-muted hover:bg-muted/80 text-foreground text-sm font-semibold rounded-xl px-4 py-2 border border-border/40 transition-colors"
+                  disabled={pdfUploading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-primary text-primary-foreground text-sm font-semibold rounded-xl px-4 py-2 hover:bg-primary/95 transition-colors flex items-center gap-1.5"
+                  disabled={pdfUploading}
+                >
+                  {pdfUploading ? "Parsing..." : "Start Import"}
                 </button>
               </div>
             </form>

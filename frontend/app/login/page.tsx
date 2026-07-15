@@ -116,13 +116,15 @@ export default function LoginPage() {
         const resData = await res.json();
         localStorage.setItem("access_token", resData.access_token);
         localStorage.setItem("refresh_token", resData.refresh_token);
-        localStorage.setItem("user_role", data.role);
+        
+        const actualRole = resData.role || data.role;
+        localStorage.setItem("user_role", actualRole);
         localStorage.setItem("user_email", data.email);
 
         // Store cookies for server-side Next.js middleware compatibility
         const maxAge = data.rememberMe ? 60 * 60 * 24 * 7 : 3600; // 7 days or 1 hour
         document.cookie = `access_token=${resData.access_token}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
-        document.cookie = `user_role=${data.role}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
+        document.cookie = `user_role=${actualRole}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
         document.cookie = `user_email=${data.email}; path=/; max-age=${maxAge}; SameSite=Lax; Secure`;
 
         setIsLoading(false);
@@ -131,7 +133,7 @@ export default function LoginPage() {
           message: `Successfully authenticated! Welcome to ProctorAI.`,
         });
         setTimeout(() => {
-          router.push(`/${data.role}/dashboard`);
+          router.push(`/${actualRole}/dashboard`);
         }, 1500);
         return;
       }

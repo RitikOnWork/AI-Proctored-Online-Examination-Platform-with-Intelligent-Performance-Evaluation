@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
+    # AI Configurations
+    GROQ_API_KEY: str = "your_groq_api_key_here"
+    AI_SERVICE_API_KEY: str = "your_ai_api_key_here"
+
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres_password_change_me@localhost:5432/proctored_exam_db"
 

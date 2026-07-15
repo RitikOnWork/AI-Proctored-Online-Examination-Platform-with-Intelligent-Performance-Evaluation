@@ -2,7 +2,6 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { recentActivity } from "@/lib/mock-data";
 import { GraduationCap, ClipboardList, BookOpen, UserCheck, BarChart3, AlertTriangle } from "lucide-react";
 
 const typeConfig: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
@@ -14,7 +13,7 @@ const typeConfig: Record<string, { icon: React.ElementType; color: string; bg: s
   proctor:  { icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
 };
 
-export default function RecentActivity() {
+export default function RecentActivity({ data = [] }: { data?: any[] }) {
   return (
     <div className="bg-card border border-border/40 rounded-2xl p-5 shadow-sm">
       <div className="flex items-center justify-between mb-5">
@@ -32,7 +31,7 @@ export default function RecentActivity() {
         <div className="absolute left-4 top-0 bottom-0 w-px bg-border/40" />
 
         <div className="space-y-1">
-          {recentActivity.map((item, i) => {
+          {data.map((item, i) => {
             const cfg = typeConfig[item.type] ?? typeConfig.student;
             const Icon = cfg.icon;
             return (

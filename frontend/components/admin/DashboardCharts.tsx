@@ -6,10 +6,6 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 import { motion } from "framer-motion";
-import {
-  monthlyExams, monthlyStudents, questionTypeDistribution,
-  examCompletionRate, subjectWiseExams, proctoringViolations
-} from "@/lib/mock-data";
 
 const cardClass = "bg-card border border-border/40 rounded-2xl p-5 shadow-sm";
 
@@ -53,11 +49,11 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
 }
 
 // 1. Monthly Exams Area Chart
-export function MonthlyExamsChart() {
+export function MonthlyExamsChart({ data = [] }: { data?: any[] }) {
   return (
     <ChartCard title="Exams Conducted" subtitle="Monthly overview — all year">
       <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={monthlyExams}>
+        <AreaChart data={data}>
           <defs>
             <linearGradient id="conductedGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
@@ -82,11 +78,11 @@ export function MonthlyExamsChart() {
 }
 
 // 2. Monthly Students Bar Chart
-export function MonthlyStudentsChart() {
+export function MonthlyStudentsChart({ data = [] }: { data?: any[] }) {
   return (
     <ChartCard title="Student Registrations" subtitle="Monthly new registrations vs active">
       <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={monthlyStudents} barSize={10}>
+        <BarChart data={data} barSize={10}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
           <XAxis dataKey="month" tick={axisStyle} axisLine={false} tickLine={false} />
           <YAxis tick={axisStyle} axisLine={false} tickLine={false} />
@@ -101,13 +97,13 @@ export function MonthlyStudentsChart() {
 }
 
 // 3. Question Type Pie Chart
-export function QuestionTypeChart() {
+export function QuestionTypeChart({ data = [] }: { data?: any[] }) {
   return (
     <ChartCard title="Question Type Distribution" subtitle="Breakdown by question format">
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie
-            data={questionTypeDistribution}
+            data={data}
             cx="50%" cy="50%"
             innerRadius={55} outerRadius={85}
             paddingAngle={3}
@@ -115,7 +111,7 @@ export function QuestionTypeChart() {
             labelLine={false}
             label={renderCustomLabel}
           >
-            {questionTypeDistribution.map((entry, i) => (
+            {data.map((entry: any, i: number) => (
               <Cell key={i} fill={entry.color} stroke="transparent" />
             ))}
           </Pie>
@@ -131,13 +127,13 @@ export function QuestionTypeChart() {
 }
 
 // 4. Exam Completion Rate Donut
-export function ExamCompletionChart() {
+export function ExamCompletionChart({ data = [] }: { data?: any[] }) {
   return (
     <ChartCard title="Exam Completion Rate" subtitle="Completed vs cancelled vs in-progress">
       <ResponsiveContainer width="100%" height={200}>
         <PieChart>
           <Pie
-            data={examCompletionRate}
+            data={data}
             cx="50%" cy="50%"
             innerRadius={60} outerRadius={85}
             paddingAngle={4}
@@ -145,7 +141,7 @@ export function ExamCompletionChart() {
             labelLine={false}
             label={renderCustomLabel}
           >
-            {examCompletionRate.map((entry, i) => (
+            {data.map((entry: any, i: number) => (
               <Cell key={i} fill={entry.color} stroke="transparent" />
             ))}
           </Pie>
@@ -158,11 +154,11 @@ export function ExamCompletionChart() {
 }
 
 // 5. Subject-wise Bar Chart
-export function SubjectWiseChart() {
+export function SubjectWiseChart({ data = [] }: { data?: any[] }) {
   return (
     <ChartCard title="Exams by Subject" subtitle="Total exams per academic subject">
       <ResponsiveContainer width="100%" height={200}>
-        <BarChart data={subjectWiseExams} layout="vertical" barSize={10}>
+        <BarChart data={data} layout="vertical" barSize={10}>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
           <XAxis type="number" tick={axisStyle} axisLine={false} tickLine={false} />
           <YAxis dataKey="subject" type="category" tick={axisStyle} axisLine={false} tickLine={false} width={85} />
@@ -175,11 +171,11 @@ export function SubjectWiseChart() {
 }
 
 // 6. Proctoring Violations Area Chart
-export function ProctoringViolationsChart() {
+export function ProctoringViolationsChart({ data = [] }: { data?: any[] }) {
   return (
     <ChartCard title="Proctoring Violations" subtitle="Monthly violation breakdown">
       <ResponsiveContainer width="100%" height={200}>
-        <AreaChart data={proctoringViolations}>
+        <AreaChart data={data}>
           <defs>
             <linearGradient id="faceGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.35} />

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { notifications } from "@/lib/mock-data";
+import { dashboardService } from "@/services/dashboard";
 import {
   Bell, ClipboardList, AlertTriangle, Clock, GraduationCap,
   Server, Eye, CheckCheck, X
@@ -23,8 +23,24 @@ type NotifItem = {
 };
 
 export default function NotificationPanel() {
-  const [items, setItems] = useState<NotifItem[]>(notifications as NotifItem[]);
+  const [items, setItems] = useState<NotifItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
+
+  useEffect(() => {
+    async function loadNotifs() {
+      try {
+        setLoading(true);
+        const stats = await dashboardService.getStats();
+        setItems((stats.notifications || []) as NotifItem[]);
+      } catch (err) {
+        console.error("Failed to load notifications", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadNotifs();
+  }, []);
 
   const markAllRead = () => setItems(prev => prev.map(n => ({ ...n, read: true })));
   const remove = (id: string) => setItems(prev => prev.filter(n => n.id !== id));
@@ -32,6 +48,15 @@ export default function NotificationPanel() {
 
   const displayed = filter === "unread" ? items.filter(n => !n.read) : items;
   const unreadCount = items.filter(n => !n.read).length;
+
+  if (loading) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center gap-4 text-center">
+        <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        <p className="text-xs text-muted-foreground">Loading notifications...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div

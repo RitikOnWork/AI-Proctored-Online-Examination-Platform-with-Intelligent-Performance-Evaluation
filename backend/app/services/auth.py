@@ -58,7 +58,7 @@ class AuthService:
         """
         access = create_access_token(subject=user.id, role=user.role.value)
         refresh = create_refresh_token(subject=user.id)
-        return Token(access_token=access, refresh_token=refresh)
+        return Token(access_token=access, refresh_token=refresh, role=user.role.value)
 
     async def refresh_session(self, refresh_token: str) -> Token:
         """

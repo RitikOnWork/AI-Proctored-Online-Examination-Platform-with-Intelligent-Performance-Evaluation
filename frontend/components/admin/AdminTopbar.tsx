@@ -3,9 +3,10 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Bell, Sun, Moon, ChevronDown, User, Settings, LogOut, Shield } from "lucide-react";
-import { notifications } from "@/lib/mock-data";
 import { useSidebar } from "@/lib/sidebar-context";
 import { format } from "date-fns";
+import { api } from "@/services/api";
+import { dashboardService } from "@/services/dashboard";
 
 export default function AdminTopbar() {
   const { collapsed } = useSidebar();
@@ -14,18 +15,54 @@ export default function AdminTopbar() {
   const [showProfile, setShowProfile] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState("");
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const [userProfile, setUserProfile] = useState<{ fullName: string; email: string } | null>(null);
+  const [notifs, setNotifs] = useState<any[]>([]);
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    async function fetchMe() {
+      try {
+        const storedEmail = typeof window !== "undefined" ? localStorage.getItem("user_email") || "admin@proctorai.com" : "admin@proctorai.com";
+        const meRes = await api.get("/auth/me");
+        setUserProfile({
+          fullName: meRes.data.full_name || "Admin User",
+          email: meRes.data.email || storedEmail,
+        });
+      } catch (err) {
+        const storedEmail = typeof window !== "undefined" ? localStorage.getItem("user_email") || "admin@proctorai.com" : "admin@proctorai.com";
+        setUserProfile({
+          fullName: "Admin User",
+          email: storedEmail,
+        });
+      }
+    }
+
+    async function fetchNotifs() {
+      try {
+        const stats = await dashboardService.getStats();
+        setNotifs(stats.notifications || []);
+      } catch (err) {
+        console.error("Failed to load notifications for topbar", err);
+      }
+    }
+
+    fetchMe();
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (isDark) document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
-  }, [isDark]);
+  const handleLogout = () => {
+    if (typeof window !== "undefined") {
+      localStorage.clear();
+      document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      document.cookie = "refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      document.cookie = "user_role=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      document.cookie = "user_email=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      window.location.href = "/login";
+    }
+  };
+
+  const unreadCount = notifs.filter((n) => !n.read).length;
 
   const notifColors: Record<string, string> = {
     exam:    "bg-primary/10 text-primary",
@@ -101,7 +138,7 @@ export default function AdminTopbar() {
                 <span className="text-xs text-primary cursor-pointer hover:text-primary/80 transition-colors">Mark all read</span>
               </div>
               <div className="max-h-80 overflow-y-auto scrollbar-thin">
-                {notifications.map((n) => (
+                {notifs.map((n) => (
                   <div
                     key={n.id}
                     className={`px-4 py-3 border-b border-border/20 hover:bg-muted/50 transition-all cursor-pointer ${!n.read ? "bg-primary/5" : ""}`}
@@ -133,11 +170,11 @@ export default function AdminTopbar() {
           className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/50 border border-border/40 hover:bg-muted transition-all"
         >
           <div className="w-7 h-7 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center text-xs font-bold text-primary-foreground">
-            A
+            {(userProfile?.fullName || "A")[0].toUpperCase()}
           </div>
           <div className="hidden sm:block text-left">
-            <p className="text-xs font-semibold text-foreground leading-tight">Admin User</p>
-            <p className="text-[10px] text-muted-foreground">admin@proctorai.com</p>
+            <p className="text-xs font-semibold text-foreground leading-tight">{userProfile?.fullName || "Admin User"}</p>
+            <p className="text-[10px] text-muted-foreground">{userProfile?.email || "admin@proctorai.com"}</p>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-muted-foreground hidden sm:block" />
         </motion.button>
@@ -152,8 +189,8 @@ export default function AdminTopbar() {
               className="absolute right-0 top-12 w-52 bg-card/95 backdrop-blur-xl border border-border/40 rounded-2xl shadow-2xl shadow-foreground/5 overflow-hidden z-50"
             >
               <div className="px-4 py-3 border-b border-border/40">
-                <p className="text-sm font-semibold text-foreground">Admin User</p>
-                <p className="text-xs text-muted-foreground">admin@proctorai.com</p>
+                <p className="text-sm font-semibold text-foreground">{userProfile?.fullName || "Admin User"}</p>
+                <p className="text-xs text-muted-foreground">{userProfile?.email || "admin@proctorai.com"}</p>
               </div>
               {[
                 { icon: User,     label: "My Profile" },
@@ -169,7 +206,10 @@ export default function AdminTopbar() {
                 </button>
               ))}
               <div className="border-t border-border/40 mt-1">
-                <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-all">
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-all"
+                >
                   <LogOut className="w-4 h-4" />
                   Logout
                 </button>

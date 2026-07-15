@@ -63,22 +63,28 @@ async def client(db_session):
 
 
 @pytest_asyncio.fixture
-async def create_token(client):
+async def create_token(client, db_session):
     """
     Helper fixture to register, login, and return JWT access tokens for different roles.
     """
     async def _token(email: str, role: str) -> str:
-        # Register
-        await client.post(
-            "/api/v1/auth/register",
-            json={
-                "email": email,
-                "full_name": f"{role.capitalize()} User",
-                "password": "password123",
-                "role": role
-            }
+        from app.models.users import User, UserRole
+        from app.core.security import hash_password
+
+        # Create user directly in database to bypass public registration restrictions
+        user_role = UserRole(role)
+        new_user = User(
+            email=email,
+            full_name=f"{role.capitalize()} User",
+            hashed_password=hash_password("password123"),
+            role=user_role,
+            is_active=True
         )
-        # Login
+        db_session.add(new_user)
+        await db_session.commit()
+        await db_session.refresh(new_user)
+
+        # Login to get token
         res = await client.post(
             "/api/v1/auth/login",
             data={
@@ -88,3 +94,5 @@ async def create_token(client):
         )
         return res.json()["access_token"]
     return _token
+
+

@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { recentStudents, recentExaminers, pendingEvaluations, recentProctorEvents } from "@/lib/mock-data";
 import { Search, ChevronUp, ChevronDown, Download, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 
 // ─── Table Shell ─────────────────────────────────────────────────────────────
@@ -83,13 +82,13 @@ function Avatar({ initials, gradient = "from-primary/60 to-accent/60" }: { initi
 }
 
 // ─── Recent Students ──────────────────────────────────────────────────────────
-export function RecentStudentsTable() {
+export function RecentStudentsTable({ data = [] }: { data?: any[] }) {
   const [search, setSearch] = useState("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const perPage = 5;
 
-  const filtered = recentStudents
+  const filtered = data
     .filter((s) => s.name.toLowerCase().includes(search.toLowerCase()) || s.email.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => sortDir === "asc" ? a.registered.localeCompare(b.registered) : b.registered.localeCompare(a.registered));
 
@@ -118,7 +117,7 @@ export function RecentStudentsTable() {
               className="border-b border-border/20 hover:bg-muted/30 transition-colors group">
               <td className={tdClass}>
                 <div className="flex items-center gap-2.5">
-                  <Avatar initials={s.name.split(" ").map((w) => w[0]).join("").slice(0, 2)} />
+                  <Avatar initials={s.name.split(" ").map((w: string) => w[0]).join("").slice(0, 2)} />
                   <span className="font-medium text-foreground group-hover:text-primary transition-colors">{s.name}</span>
                 </div>
               </td>
@@ -139,10 +138,10 @@ export function RecentStudentsTable() {
 }
 
 // ─── Recent Examiners ────────────────────────────────────────────────────────
-export function RecentExaminersTable() {
+export function RecentExaminersTable({ data = [] }: { data?: any[] }) {
   const [search, setSearch] = useState("");
 
-  const filtered = recentExaminers.filter((e) =>
+  const filtered = data.filter((e) =>
     e.name.toLowerCase().includes(search.toLowerCase()) || e.email.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -164,7 +163,7 @@ export function RecentExaminersTable() {
               className="border-b border-border/20 hover:bg-muted/30 transition-colors group">
               <td className={tdClass}>
                 <div className="flex items-center gap-2.5">
-                  <Avatar initials={e.name.split(" ").filter((w) => /^[A-Z]/.test(w)).map((w) => w[0]).join("").slice(0, 2)} gradient="from-teal-500/60 to-emerald-600/60" />
+                  <Avatar initials={e.name.split(" ").filter((w: string) => /^[A-Z]/.test(w)).map((w: string) => w[0]).join("").slice(0, 2)} gradient="from-teal-500/60 to-emerald-600/60" />
                   <span className="font-medium text-foreground group-hover:text-primary transition-colors">{e.name}</span>
                 </div>
               </td>
@@ -181,10 +180,10 @@ export function RecentExaminersTable() {
 }
 
 // ─── Pending Evaluations ──────────────────────────────────────────────────────
-export function PendingEvaluationsTable() {
+export function PendingEvaluationsTable({ data = [] }: { data?: any[] }) {
   const [search, setSearch] = useState("");
 
-  const filtered = pendingEvaluations.filter((p) =>
+  const filtered = data.filter((p) =>
     p.student.toLowerCase().includes(search.toLowerCase()) || p.exam.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -236,10 +235,10 @@ export function PendingEvaluationsTable() {
 }
 
 // ─── Proctor Events ───────────────────────────────────────────────────────────
-export function RecentProctorEventsTable() {
+export function RecentProctorEventsTable({ data = [] }: { data?: any[] }) {
   const [search, setSearch] = useState("");
 
-  const filtered = recentProctorEvents.filter((p) =>
+  const filtered = data.filter((p) =>
     p.student.toLowerCase().includes(search.toLowerCase()) || p.event.toLowerCase().includes(search.toLowerCase())
   );
 

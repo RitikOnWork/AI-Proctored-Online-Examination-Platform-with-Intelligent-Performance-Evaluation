@@ -8,7 +8,7 @@ from app.schemas.exam import ExamCreate, ExamUpdate, ExamResponse, ExamQuestions
 from app.schemas.question import QuestionResponse
 from app.repositories.exam import ExamRepository
 from app.services.exam import ExamService
-from app.dependencies.auth import get_current_user, get_current_examiner, get_current_student, verify_exam_token
+from app.dependencies.auth import get_current_user, get_current_examiner, get_current_student, verify_exam_token, RoleChecker
 from app.core.security import create_exam_token
 
 router = APIRouter(prefix="/exams", tags=["Exam Configuration Management"])
@@ -35,7 +35,7 @@ async def get_exam_service(
 async def create_exam(
     exam_in: ExamCreate,
     exam_service: ExamService = Depends(get_exam_service),
-    current_user: User = Depends(get_current_examiner)
+    current_user: User = Depends(RoleChecker(["examiner", "admin"]))
 ):
     return await exam_service.create_exam(exam_in, current_user.id)
 
@@ -88,7 +88,7 @@ async def update_exam(
     exam_id: uuid.UUID,
     exam_in: ExamUpdate,
     exam_service: ExamService = Depends(get_exam_service),
-    current_user: User = Depends(get_current_examiner)
+    current_user: User = Depends(RoleChecker(["examiner", "admin"]))
 ):
     return await exam_service.update_exam(exam_id, exam_in)
 
@@ -102,7 +102,7 @@ async def update_exam(
 async def publish_exam(
     exam_id: uuid.UUID,
     exam_service: ExamService = Depends(get_exam_service),
-    current_user: User = Depends(get_current_examiner)
+    current_user: User = Depends(RoleChecker(["examiner", "admin"]))
 ):
     return await exam_service.publish_exam(exam_id)
 
@@ -116,7 +116,7 @@ async def publish_exam(
 async def delete_exam(
     exam_id: uuid.UUID,
     exam_service: ExamService = Depends(get_exam_service),
-    current_user: User = Depends(get_current_examiner)
+    current_user: User = Depends(RoleChecker(["examiner", "admin"]))
 ):
     return await exam_service.delete_exam(exam_id)
 
@@ -131,7 +131,7 @@ async def assign_exam_questions(
     exam_id: uuid.UUID,
     payload: ExamQuestionsAssign,
     exam_service: ExamService = Depends(get_exam_service),
-    current_user: User = Depends(get_current_examiner)
+    current_user: User = Depends(RoleChecker(["examiner", "admin"]))
 ):
     await exam_service.assign_questions(exam_id, payload.questions)
     return {"message": "Questions successfully assigned to exam."}

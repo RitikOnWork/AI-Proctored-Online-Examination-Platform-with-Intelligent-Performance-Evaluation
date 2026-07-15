@@ -106,3 +106,71 @@ async def test_image_upload(client, create_token):
         headers={"Authorization": f"Bearer {examiner_token}"}
     )
     assert res.status_code == 400
+
+
+async def test_import_pdf_questions(client, create_token, db_session):
+    from unittest.mock import patch, MagicMock
+    from app.models.subjects import Subject
+
+    # 1. Create a subject in database first so we have a valid subject_id
+    subject = Subject(name="AI Engineering", description="Artificial Intelligence")
+    db_session.add(subject)
+    await db_session.commit()
+    await db_session.refresh(subject)
+    
+    examiner_token = await create_token(f"examiner_{uuid.uuid4().hex[:6]}@example.com", "examiner")
+    
+    # 2. Prepare mock PDF file and mock groq/pypdf calls
+    pdf_data = b"%PDF-1.4 mock pdf contents"
+    
+    mock_pdf_reader = MagicMock()
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "Mock question text from PDF"
+    mock_pdf_reader.pages = [mock_page]
+    
+    mock_groq_client = MagicMock()
+    mock_completion = MagicMock()
+    mock_message = MagicMock()
+    
+    # Target JSON format that Groq will return
+    mock_message.content = """
+    {
+      "questions": [
+        {
+          "title": "Mocked MCQ Q1",
+          "question_text": "What is the capital of France?",
+          "question_type": "mcq",
+          "difficulty": "easy",
+          "marks": 2.0,
+          "options": [
+            { "option_text": "Paris", "is_correct": true },
+            { "option_text": "London", "is_correct": false }
+          ]
+        }
+      ]
+    }
+    """
+    mock_completion.choices = [MagicMock(message=mock_message)]
+    mock_groq_client.chat.completions.create.return_value = mock_completion
+    
+    # Apply patches and post import request
+    with patch("pypdf.PdfReader", return_value=mock_pdf_reader), \
+         patch("groq.Groq", return_value=mock_groq_client), \
+         patch.dict("os.environ", {"GROQ_API_KEY": "mock-groq-key"}):
+         
+        files = {"file": ("test.pdf", pdf_data, "application/pdf")}
+        data = {"subject_id": str(subject.id)}
+        
+        res = await client.post(
+            "/api/v1/questions/import-pdf",
+            files=files,
+            data=data,
+            headers={"Authorization": f"Bearer {examiner_token}"}
+        )
+        
+        assert res.status_code == 201
+        json_data = res.json()
+        assert json_data["imported_count"] == 1
+        assert json_data["total_parsed"] == 1
+        assert "Successfully processed PDF" in json_data["message"]
+
