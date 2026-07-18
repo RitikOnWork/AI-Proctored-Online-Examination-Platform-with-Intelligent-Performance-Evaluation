@@ -122,7 +122,7 @@ async def upload_image(
 async def search_questions(
     q: str = Query(..., min_length=1, description="Search query string"),
     skip: int = Query(0, ge=0, description="Pagination skip offset"),
-    limit: int = Query(100, ge=1, le=100, description="Pagination limit size"),
+    limit: int = Query(100, ge=1, le=500, description="Pagination limit size"),
     question_service: QuestionService = Depends(get_question_service),
     current_user: User = Depends(get_current_user)
 ):
@@ -151,7 +151,7 @@ async def get_question(
 )
 async def list_questions(
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=500),
     subject_id: Optional[uuid.UUID] = Query(None, description="Filter by Subject ID"),
     question_type: Optional[QuestionType] = Query(None, description="Filter by Question Type"),
     difficulty: Optional[str] = Query(None, description="Filter by difficulty ('easy', 'medium', 'hard')"),

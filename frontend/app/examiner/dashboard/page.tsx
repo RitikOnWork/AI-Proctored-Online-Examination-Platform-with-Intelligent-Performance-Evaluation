@@ -2,7 +2,7 @@
 
 import React, { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AdminLayout from "@/components/admin/AdminLayout";
+import ExaminerLayout from "@/components/examiner/ExaminerLayout";
 import { SidebarProvider } from "@/lib/sidebar-context";
 
 export default function ExaminerDashboardPage() {
@@ -24,7 +24,7 @@ export default function ExaminerDashboardPage() {
 
   return (
     <SidebarProvider>
-      <AdminLayout />
+      <ExaminerLayout />
     </SidebarProvider>
   );
 }
