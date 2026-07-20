@@ -6,37 +6,17 @@ import { Search, Bell, Sun, Moon, ChevronDown, User, Settings, LogOut, Shield } 
 import { useSidebar } from "@/lib/sidebar-context";
 import { format } from "date-fns";
 import { api } from "@/services/api";
+import { useTheme } from "@/providers/ThemeProvider";
 
 export default function ExaminerTopbar() {
   const { collapsed } = useSidebar();
-  const [isDark, setIsDark] = useState(true);
+  const { isDark, toggleTheme } = useTheme();
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState("");
   const [userProfile, setUserProfile] = useState<{ fullName: string; email: string } | null>(null);
 
-  useEffect(() => {
-    const isLocalDark = typeof window !== "undefined" ? localStorage.getItem("theme") !== "light" : true;
-    setIsDark(isLocalDark);
-    if (isLocalDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const nextDark = !isDark;
-    setIsDark(nextDark);
-    if (nextDark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  };
 
   // Simulated notifications matching Examiner operations
   const notifs = [

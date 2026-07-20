@@ -5,6 +5,19 @@ from sqlalchemy import text
 from app.core.settings import settings
 from app.database import get_db
 
+from contextlib import asynccontextmanager
+from app.core.scheduler import start_scheduler, shutdown_scheduler
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Start APScheduler
+    start_scheduler()
+    yield
+    # Shutdown: Stop APScheduler
+    shutdown_scheduler()
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Backend API for ProctorAI - AI-Powered Online Examination Platform",
@@ -12,7 +25,9 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan
 )
+
 
 # Set CORS middleware
 if settings.CORS_ORIGINS:

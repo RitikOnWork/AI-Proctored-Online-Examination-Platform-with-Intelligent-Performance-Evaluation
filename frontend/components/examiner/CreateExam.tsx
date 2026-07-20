@@ -219,8 +219,8 @@ export default function CreateExam() {
     <div className="space-y-6">
       {/* Page Title */}
       <div>
-        <h2 className="text-xl font-bold text-slate-100">Create New Exam</h2>
-        <p className="text-xs text-slate-500 mt-1">Configure assessment templates and AI security constraints.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">Create New Exam</h2>
+        <p className="text-sm text-muted-foreground mt-1">Configure assessment templates and AI security constraints.</p>
       </div>
 
       {/* Progress wizard indicators */}

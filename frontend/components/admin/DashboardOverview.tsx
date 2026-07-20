@@ -85,8 +85,8 @@ export default function DashboardOverview() {
     <div className="space-y-8">
       {/* Header */}
       <motion.div {...sectionAnim}>
-        <h1 className="text-xl font-bold text-slate-100">Dashboard Overview</h1>
-        <p className="text-sm text-slate-500 mt-1">Real-time platform analytics and management console</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard Overview</h1>
+        <p className="text-sm text-muted-foreground mt-1">Real-time platform analytics and management console</p>
       </motion.div>
 
       {/* Overview Stat Cards */}
@@ -144,7 +144,7 @@ export default function DashboardOverview() {
 
       {/* Data Tables */}
       <motion.section {...sectionAnim} transition={{ duration: 0.45, delay: 0.28 }}>
-        <h2 className="text-base font-bold text-slate-100 mb-4">Data Tables</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">Data Tables</h2>
         <div className="space-y-5">
           <RecentStudentsTable data={stats.recentStudents} />
           <RecentExaminersTable data={stats.recentExaminers} />

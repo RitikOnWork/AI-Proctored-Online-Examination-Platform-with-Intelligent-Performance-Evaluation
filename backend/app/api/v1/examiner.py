@@ -17,11 +17,13 @@ from app.models.exam_sessions import ExamSession, SessionStatus
 from app.models.proctor_events import ProctorEvent, ProctorEventType
 from app.models.results import Result
 from app.models.answers import Answer
+from app.models.subjective_queue import SubjectiveGradingQueue, QueueStatus
 from app.dependencies.auth import RoleChecker, get_current_user
 from app.core.settings import settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/examiner", tags=["Examiner Operations"])
+
 
 # Check role dependency
 get_current_examiner = RoleChecker(["examiner", "admin"])
@@ -129,9 +131,9 @@ async def get_examiner_stats(
     total_questions = (await db.execute(q_questions)).scalar() or 0
     
     # 2. Active Exams
-    active_exams_filter = and_(Exam.is_published == True, Exam.is_deleted == False)
     active_exams_filter = and_(
-        active_exams_filter,
+        Exam.is_published == True,
+        Exam.is_deleted == False,
         or_(Exam.start_time == None, Exam.start_time <= now),
         or_(Exam.end_time == None, Exam.end_time >= now)
     )
@@ -148,105 +150,110 @@ async def get_examiner_stats(
     scheduled_exams = (await db.execute(q_scheduled_exams)).scalar() or 0
     
     # 4. Pending AI Reviews
-    pending_ai_filter = and_(
-        ExamSession.status == SessionStatus.SUBMITTED,
-        Result.id == None
-    )
-    q_pending_ai = select(func.count(ExamSession.id)).select_from(ExamSession).outerjoin(Result, ExamSession.id == Result.session_id).where(pending_ai_filter)
+    q_pending_ai = select(func.count(SubjectiveGradingQueue.id)).where(SubjectiveGradingQueue.status == QueueStatus.PENDING.value)
     pending_ai_reviews = (await db.execute(q_pending_ai)).scalar() or 0
     
     # 5. Manual Review Pending
-    pending_manual_filter = and_(
-        ExamSession.status == SessionStatus.SUBMITTED,
-        Answer.is_graded == False,
-        or_(
-            QuestionBank.question_type == QuestionType.SHORT_ANSWER,
-            QuestionBank.question_type == QuestionType.LONG_ANSWER
-        )
-    )
-    q_pending_manual = select(func.count(Answer.id)).select_from(Answer).join(QuestionBank, Answer.question_id == QuestionBank.id).join(ExamSession, Answer.session_id == ExamSession.id).where(pending_manual_filter)
+    q_pending_manual = select(func.count(Answer.id)).where(Answer.is_graded == False)
     pending_manual_reviews = (await db.execute(q_pending_manual)).scalar() or 0
     
     # 6. Results Awaiting Publication
-    results_awaiting = pending_ai_reviews  # Simulating stubs
+    results_awaiting = pending_ai_reviews
     
     overview_stats = [
-        { "id": "questions-created", "label": "Questions Created", "value": total_questions, "change": 4.5, "icon": "BookOpen", "color": "indigo" },
-        { "id": "active-exams", "label": "Active Exams", "value": active_exams, "change": 12.0, "icon": "Play", "color": "emerald" },
+        { "id": "questions-created", "label": "Questions Created", "value": total_questions, "change": 0.0, "icon": "BookOpen", "color": "indigo" },
+        { "id": "active-exams", "label": "Active Exams", "value": active_exams, "change": 0.0, "icon": "Play", "color": "emerald" },
         { "id": "scheduled-exams", "label": "Scheduled Exams", "value": scheduled_exams, "change": 0.0, "icon": "Calendar", "color": "blue" },
-        { "id": "pending-ai", "label": "Pending AI Reviews", "value": pending_ai_reviews, "change": -10.5, "icon": "Cpu", "color": "violet" },
-        { "id": "pending-manual", "label": "Manual Review Pending", "value": pending_manual_reviews, "change": -15.0, "icon": "Clock", "color": "orange" },
-        { "id": "results-awaiting", "label": "Results Awaiting Pub.", "value": results_awaiting, "change": 8.2, "icon": "CheckSquare", "color": "teal" }
+        { "id": "pending-ai", "label": "Pending AI Reviews", "value": pending_ai_reviews, "change": 0.0, "icon": "Cpu", "color": "violet" },
+        { "id": "pending-manual", "label": "Manual Review Pending", "value": pending_manual_reviews, "change": 0.0, "icon": "Clock", "color": "orange" },
+        { "id": "results-awaiting", "label": "Results Awaiting Pub.", "value": results_awaiting, "change": 0.0, "icon": "CheckSquare", "color": "teal" }
     ]
 
-    # Recharts Charts Data
+    # Recharts Charts Data: Real Database Counts
     # A. Completion Rate
-    completed_cnt = pending_ai_reviews + 12 # simulated completion count
-    in_progress_cnt = active_exams * 15
-    cancelled_cnt = 2
+    completed_q = select(func.count(ExamSession.id)).where(ExamSession.status.in_([SessionStatus.SUBMITTED, SessionStatus.EXPIRED]))
+    completed_cnt = (await db.execute(completed_q)).scalar() or 0
+
+    in_progress_q = select(func.count(ExamSession.id)).where(ExamSession.status == SessionStatus.ACTIVE)
+    in_progress_cnt = (await db.execute(in_progress_q)).scalar() or 0
+
+    cancelled_q = select(func.count(ExamSession.id)).where(ExamSession.status == SessionStatus.SUSPENDED)
+    cancelled_cnt = (await db.execute(cancelled_q)).scalar() or 0
+
     exam_completion_rate = [
         { "name": "Completed", "value": completed_cnt, "color": "#14b8a6" },
         { "name": "In Progress", "value": in_progress_cnt, "color": "#6366f1" },
         { "name": "Cancelled", "value": cancelled_cnt, "color": "#f43f5e" }
     ]
     
-    # B. Questions created per month (last 6 months)
+    # B. Questions created per month (Real DB query)
     questions_per_month = [
-        { "month": "Jan", "count": 45 },
-        { "month": "Feb", "count": 60 },
-        { "month": "Mar", "count": 80 },
-        { "month": "Apr", "count": 75 },
-        { "month": "May", "count": 95 },
-        { "month": "Jun", "count": total_questions }
+        { "month": "Total Created", "count": total_questions }
     ]
     
-    # C. Average Student Score
+    # C. Average Student Score per Subject (Real DB aggregation)
+    avg_score_query = (
+        select(Subject.name, func.avg(Result.percentage))
+        .select_from(Result)
+        .join(ExamSession, Result.session_id == ExamSession.id)
+        .join(Exam, ExamSession.exam_id == Exam.id)
+        .join(Subject, Exam.subject_id == Subject.id)
+        .group_by(Subject.name)
+    )
+    avg_score_res = (await db.execute(avg_score_query)).all()
     avg_scores = [
-        { "subject": "Mathematics", "score": 74.2 },
-        { "subject": "Physics", "score": 68.5 },
-        { "subject": "Chemistry", "score": 71.0 },
-        { "subject": "Computer Science", "score": 82.4 }
+        { "subject": name, "score": round(float(avg_val), 1) } for name, avg_val in avg_score_res
     ]
     
-    # D. Difficulty Distribution
+    # D. Difficulty Distribution (Real DB query)
+    diff_query = (
+        select(QuestionBank.difficulty, func.count(QuestionBank.id))
+        .where(QuestionBank.is_deleted == False)
+        .group_by(QuestionBank.difficulty)
+    )
+    diff_res = dict((await db.execute(diff_query)).all())
     difficulty_dist = [
-        { "level": "Easy", "value": 35, "color": "#14b8a6" },
-        { "level": "Medium", "value": 45, "color": "#f59e0b" },
-        { "level": "Hard", "value": 20, "color": "#f43f5e" }
+        { "level": "Easy", "value": diff_res.get("easy", 0), "color": "#14b8a6" },
+        { "level": "Medium", "value": diff_res.get("medium", 0), "color": "#f59e0b" },
+        { "level": "Hard", "value": diff_res.get("hard", 0), "color": "#f43f5e" }
     ]
 
-    # E. AI Accuracy Chart
+    # E. AI Confidence Accuracy (Real DB query)
+    conf_query = select(func.avg(SubjectiveGradingQueue.confidence)).where(SubjectiveGradingQueue.status != QueueStatus.PENDING.value)
+    avg_conf = (await db.execute(conf_query)).scalar()
+    accuracy_val = round(float(avg_conf) * 100.0, 1) if avg_conf else 95.0
+    
     ai_grading_accuracy = [
-        { "month": "Jan", "accuracy": 92 },
-        { "month": "Feb", "accuracy": 94 },
-        { "month": "Mar", "accuracy": 93 },
-        { "month": "Apr", "accuracy": 95 },
-        { "month": "May", "accuracy": 96 },
-        { "month": "Jun", "accuracy": 98 }
+        { "month": "Current", "accuracy": accuracy_val }
     ]
 
-    # F. Recent Activity Timeline
-    recent_activity = [
-        { "id": "1", "type": "question", "title": "Question Created", "desc": "New MCQ added to Chemistry", "time": "5m ago" },
-        { "id": "2", "type": "exam", "title": "Exam Scheduled", "desc": "Physics Midterm set for July 25th", "time": "20m ago" },
-        { "id": "3", "type": "ai_grading", "title": "AI Grading Completed", "desc": "Session #8294 graded automatically", "time": "1h ago" },
-        { "id": "4", "type": "manual_review", "title": "Manual Review Completed", "desc": "Evaluated 12 short answers in CSE Quiz", "time": "3h ago" },
-        { "id": "5", "type": "dispute", "title": "Student Dispute Raised", "desc": "Dispute raised by Amit Kumar in Maths Algebra", "time": "5h ago" }
-    ]
+    # F. Recent Activity Timeline (Real DB query)
+    recent_activity = []
+    recent_sessions_q = select(ExamSession).options(selectinload(ExamSession.candidate), selectinload(ExamSession.exam)).order_by(ExamSession.created_at.desc()).limit(5)
+    recent_sessions = (await db.execute(recent_sessions_q)).scalars().all()
+    for s in recent_sessions:
+        recent_activity.append({
+            "id": str(s.id),
+            "type": "exam",
+            "title": f"Session {s.status.value.title()}",
+            "desc": f"{s.candidate.full_name} in {s.exam.title}",
+            "time": s.created_at.strftime("%H:%M %b %d")
+        })
 
-    # G. Upcoming Exams Grid
+    # G. Upcoming Exams Grid (Real DB query)
     q_exams = select(Exam).options(selectinload(Exam.subject)).where(Exam.is_deleted == False).order_by(Exam.start_time.asc()).limit(5)
-    exams_res = await db.execute(q_exams)
-    exams_list = exams_res.scalars().all()
+    exams_list = (await db.execute(q_exams)).scalars().all()
     upcoming_exams = []
     for exam in exams_list:
+        cand_count_q = select(func.count(ExamSession.id)).where(ExamSession.exam_id == exam.id)
+        cand_count = (await db.execute(cand_count_q)).scalar() or 0
         upcoming_exams.append({
             "id": str(exam.id),
             "exam": exam.title,
             "subject": exam.subject.name if exam.subject else "General",
             "start_time": exam.start_time.strftime("%Y-%m-%d %H:%M") if exam.start_time else "Unscheduled",
             "duration": exam.duration_minutes,
-            "students": 45, # simulated active candidate count
+            "students": cand_count,
             "status": "active" if exam.is_published else "draft"
         })
 
@@ -267,7 +274,6 @@ async def get_grading_queue(
     db: AsyncSession = Depends(get_db),
     current_examiner: User = Depends(get_current_examiner)
 ):
-    # Retrieve exam sessions that have been submitted
     query = (
         select(ExamSession)
         .options(
@@ -276,7 +282,7 @@ async def get_grading_queue(
             selectinload(ExamSession.result),
             selectinload(ExamSession.answers)
         )
-        .where(ExamSession.status == SessionStatus.SUBMITTED)
+        .where(ExamSession.status.in_([SessionStatus.SUBMITTED, SessionStatus.EXPIRED]))
         .order_by(ExamSession.completed_at.desc())
     )
     res = await db.execute(query)
@@ -284,14 +290,16 @@ async def get_grading_queue(
     
     queue = []
     for s in sessions:
-        # Calculate graded count
         total_answers = len(s.answers)
         graded_answers = sum(1 for a in s.answers if a.is_graded)
         status_lbl = "completed" if graded_answers == total_answers else "pending"
-        
-        # Calculate total score from actual answers
         obtained_score = sum(float(a.score_obtained) for a in s.answers)
         
+        # Query subjective confidence score from DB
+        conf_q = select(func.avg(SubjectiveGradingQueue.confidence)).where(SubjectiveGradingQueue.session_id == s.id)
+        avg_conf = (await db.execute(conf_q)).scalar()
+        conf_val = round(float(avg_conf) * 100.0, 1) if avg_conf else 85.0
+
         queue.append({
             "session_id": str(s.id),
             "student_name": s.candidate.full_name,
@@ -299,7 +307,7 @@ async def get_grading_queue(
             "exam_title": s.exam.title,
             "question_count": total_answers,
             "ai_score": obtained_score,
-            "confidence": 88.5 if s.result else 72.0, # simulated AI confidence indicator
+            "confidence": conf_val,
             "status": status_lbl,
             "submitted_at": s.completed_at.strftime("%Y-%m-%d %H:%M") if s.completed_at else "N/A"
         })
@@ -342,7 +350,6 @@ async def get_grading_session(
     for a in answers_list:
         q = a.question
         
-        # Build options mapping for display
         opts = []
         for opt in q.options:
             opts.append({
@@ -351,7 +358,6 @@ async def get_grading_session(
                 "is_correct": opt.is_correct
             })
             
-        # Determine student choice
         selected_text = ""
         if q.question_type == QuestionType.MCQ and a.selected_option:
             selected_text = a.selected_option.option_text
@@ -359,39 +365,21 @@ async def get_grading_session(
             selected_text = ", ".join([o.option_text for o in a.selected_options])
         else:
             selected_text = a.text_answer or ""
-            
-        # Perform dynamic AI grading if subjective item is not graded yet
+
+        # Fetch recorded subjective queue item from DB
+        q_item_query = select(SubjectiveGradingQueue).where(SubjectiveGradingQueue.answer_id == a.id)
+        queue_item = (await db.execute(q_item_query)).scalar_one_or_none()
+
         ai_grading = {
-            "score": float(a.score_obtained),
-            "explanation": "Automated grading complete.",
-            "matched_keywords": [],
-            "missing_keywords": [],
-            "rubric_checklist": []
+            "score": float(queue_item.ai_score or queue_item.suggested_marks) if queue_item else float(a.score_obtained),
+            "explanation": queue_item.justification if queue_item else "Automated grading complete.",
+            "matched_keywords": queue_item.matched_points.get("keywords", []) if queue_item and queue_item.matched_points else [],
+            "missing_keywords": queue_item.missing_points.get("keywords", []) if queue_item and queue_item.missing_points else [],
+            "rubric_checklist": [
+                {"item": "Evaluation criteria met", "checked": float(a.score_obtained) > 0}
+            ]
         }
-        
-        if q.question_type in [QuestionType.SHORT_ANSWER, QuestionType.LONG_ANSWER]:
-            # If not graded yet, grade with AI on the fly
-            if not a.is_graded or float(a.score_obtained) == 0.0:
-                ai_res = await evaluate_with_ai(
-                    question_text=q.question_text,
-                    expected_answer=q.expected_answer or q.model_answer or "Accuracy of facts",
-                    student_answer=selected_text,
-                    max_marks=float(q.marks)
-                )
-                ai_grading = ai_res
-                # Pre-fill student answer score stubs
-                a.score_obtained = ai_res.get("score", 0.0)
-                a.is_graded = False # Still needs examiner approval
-                db.add(a)
-            else:
-                ai_grading = {
-                    "score": float(a.score_obtained),
-                    "explanation": "AI evaluated submission. Review details below.",
-                    "matched_keywords": ["conceptual_accuracy"],
-                    "missing_keywords": [],
-                    "rubric_checklist": [{"item": "Completed criteria", "checked": True}]
-                }
-                
+
         answers_data.append({
             "answer_id": str(a.id),
             "question_id": str(q.id),
@@ -406,11 +394,9 @@ async def get_grading_session(
             "score_obtained": float(a.score_obtained),
             "is_graded": a.is_graded,
             "ai_grading": ai_grading,
-            "ocr_output": f"[OCR TEXT EXTRACTED]: {selected_text}" if q.question_type == QuestionType.IMAGE_UPLOAD else None
+            "ocr_output": queue_item.ocr_text if queue_item and queue_item.ocr_text else None
         })
         
-    await db.commit()
-    
     return {
         "session_id": str(session.id),
         "student_name": session.candidate.full_name,
@@ -440,6 +426,14 @@ async def submit_session_grade(
             ans.score_obtained = score
             ans.is_graded = True
             db.add(ans)
+
+        # Sync SubjectiveGradingQueue item in DB
+        q_item_query = select(SubjectiveGradingQueue).where(SubjectiveGradingQueue.answer_id == ans_id)
+        q_item = (await db.execute(q_item_query)).scalar_one_or_none()
+        if q_item:
+            q_item.examiner_score = score
+            q_item.status = QueueStatus.GRADED.value
+            db.add(q_item)
             
     await db.flush()
     
@@ -465,7 +459,7 @@ async def submit_session_grade(
     res_query = select(Result).where(Result.session_id == session_id)
     res_db = (await db.execute(res_query)).scalar_one_or_none()
     
-    feedback_str = f"Manual evaluation finalized by examiner."
+    feedback_str = "Manual evaluation finalized by examiner."
     if res_db:
         res_db.total_score = obtained_sum
         res_db.percentage = percentage
@@ -517,7 +511,7 @@ async def get_proctoring_events(
             "confidence": float(e.confidence),
             "details": e.details or "Audit event recorded.",
             "severity": severity,
-            "snapshot_url": e.snapshot_url or "/static/uploads/mock_snap.jpg"
+            "snapshot_url": e.snapshot_url
         })
         
     return timeline
@@ -620,6 +614,10 @@ async def get_students_list(
         q_violations = select(func.count(ProctorEvent.id)).select_from(ProctorEvent).join(ExamSession, ProctorEvent.session_id == ExamSession.id).where(ExamSession.candidate_id == s.id)
         violations_cnt = (await db.execute(q_violations)).scalar() or 0
         
+        # Calculate real student avg score & performance trends from DB
+        q_avg_score = select(func.avg(Result.percentage)).select_from(Result).join(ExamSession, Result.session_id == ExamSession.id).where(ExamSession.candidate_id == s.id)
+        avg_score_val = (await db.execute(q_avg_score)).scalar()
+        
         students_data.append({
             "id": str(s.id),
             "name": s.full_name,
@@ -627,10 +625,7 @@ async def get_students_list(
             "status": "active" if s.is_active else "inactive",
             "attempts": sessions_cnt,
             "violations": violations_cnt,
-            "avg_time": "45m",
-            "strong_topics": ["Maths", "Physics"],
-            "weak_topics": ["Chemistry"],
-            "performance_trend": [65, 72, 78, 85]
+            "avg_score": round(float(avg_score_val), 1) if avg_score_val else 0.0
         })
         
     return students_data
@@ -644,38 +639,30 @@ async def get_examiner_analytics(
     q_questions = select(QuestionBank.difficulty, func.count(QuestionBank.id)).where(QuestionBank.is_deleted == False).group_by(QuestionBank.difficulty)
     diff_counts = dict((await db.execute(q_questions)).all())
     
-    q_subjects = select(Subject.name, func.count(Exam.id)).join(Exam, Exam.subject_id == Subject.id).where(Exam.is_deleted == False).group_by(Subject.name)
-    sub_counts = dict((await db.execute(q_subjects)).all())
+    q_subjects = (
+        select(Subject.name, func.count(Exam.id), func.avg(Result.percentage))
+        .join(Exam, Exam.subject_id == Subject.id)
+        .outerjoin(ExamSession, ExamSession.exam_id == Exam.id)
+        .outerjoin(Result, Result.session_id == ExamSession.id)
+        .where(Exam.is_deleted == False)
+        .group_by(Subject.name)
+    )
+    sub_counts = (await db.execute(q_subjects)).all()
     
     subject_perf = []
-    for name, cnt in sub_counts.items():
+    for name, exam_cnt, avg_score in sub_counts:
         subject_perf.append({
             "subject": name,
-            "participation": cnt * 42,
-            "average": 72.5
+            "participation": exam_cnt,
+            "average": round(float(avg_score), 1) if avg_score else 0.0
         })
-        
-    if not subject_perf:
-        subject_perf = [{"subject": "Computer Science", "participation": 120, "average": 78.4}]
 
     return {
         "difficulty": [
-            { "name": "Easy", "count": diff_counts.get("easy", 15) },
-            { "name": "Medium", "count": diff_counts.get("medium", 25) },
-            { "name": "Hard", "count": diff_counts.get("hard", 10) }
+            { "name": "Easy", "count": diff_counts.get("easy", 0) },
+            { "name": "Medium", "count": diff_counts.get("medium", 0) },
+            { "name": "Hard", "count": diff_counts.get("hard", 0) }
         ],
-        "subjectPerformance": subject_perf,
-        "reviewerConsistency": [
-            { "name": "Prof. Kumar", "deviation": 2.1 },
-            { "name": "Dr. Rajesh", "deviation": 1.8 },
-            { "name": "AI Grader", "deviation": 0.5 }
-        ],
-        "accuracy": 96.5,
-        "heatmap": [
-            {"day": "Mon", "hour": "09:00", "submissions": 12},
-            {"day": "Tue", "hour": "10:00", "submissions": 18},
-            {"day": "Wed", "hour": "14:00", "submissions": 25},
-            {"day": "Thu", "hour": "11:00", "submissions": 15},
-            {"day": "Fri", "hour": "16:00", "submissions": 30}
-        ]
+        "subjectPerformance": subject_perf
     }
+

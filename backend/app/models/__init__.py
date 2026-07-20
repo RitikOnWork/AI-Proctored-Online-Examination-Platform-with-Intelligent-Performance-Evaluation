@@ -7,6 +7,7 @@ from app.models.exam_sessions import ExamSession, SessionStatus
 from app.models.answers import Answer
 from app.models.results import Result
 from app.models.proctor_events import ProctorEvent, ProctorEventType
+from app.models.subjective_queue import SubjectiveGradingQueue, QueueStatus
 
 __all__ = [
     "Base",
@@ -25,4 +26,7 @@ __all__ = [
     "Result",
     "ProctorEvent",
     "ProctorEventType",
+    "SubjectiveGradingQueue",
+    "QueueStatus",
 ]
+

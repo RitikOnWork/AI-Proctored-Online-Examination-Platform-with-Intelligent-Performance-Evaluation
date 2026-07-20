@@ -295,8 +295,8 @@ export default function UserManagement({ roleFilter }: UserManagementProps) {
       {/* Header and Add Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-bold text-foreground">{getRoleDisplayName()}</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">{getRoleDisplayName()}</h2>
+          <p className="text-sm text-muted-foreground mt-1">
             Manage user accounts, roles, login credentials, and account active states.
           </p>
         </div>

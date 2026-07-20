@@ -24,7 +24,7 @@ function PlaceholderSection({ title, desc }: { title: string; desc: string }) {
       className="space-y-4"
     >
       <div>
-        <h1 className="text-xl font-bold text-foreground">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
         <p className="text-sm text-muted-foreground mt-1">{desc}</p>
       </div>
       <div className="bg-card border border-border/40 rounded-2xl p-16 flex flex-col items-center justify-center gap-4 text-center shadow-sm">
@@ -56,7 +56,7 @@ function AdminContent() {
       case "exams":         return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Exam Configurations</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Exam Configurations</h1>
             <p className="text-sm text-muted-foreground mt-1">Configure timings, schedule access windows, set proctor rules, and build papers</p>
           </div>
           <ExamConfigurator />
@@ -75,7 +75,7 @@ function AdminContent() {
       case "results":       return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Results</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Results</h1>
             <p className="text-sm text-muted-foreground mt-1">Student results, scores, and pending evaluations</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -88,7 +88,7 @@ function AdminContent() {
       case "proctor-logs":  return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Proctoring Logs</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Proctoring Logs</h1>
             <p className="text-sm text-muted-foreground mt-1">AI monitoring events, violations, and suspicious session data</p>
           </div>
           <ProctoringStatsSummary />
@@ -98,7 +98,7 @@ function AdminContent() {
       case "question-bank": return (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground">Question Bank Manager</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Question Bank Manager</h1>
             <p className="text-sm text-muted-foreground mt-1">Configure academic assessment questions, answers, and image attachments</p>
           </div>
           <QuestionBankEditor />

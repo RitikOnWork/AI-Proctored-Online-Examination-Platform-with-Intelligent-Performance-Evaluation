@@ -280,8 +280,8 @@ export default function AIGradingQueue() {
     <div className="space-y-6">
       {/* Title */}
       <div>
-        <h2 className="text-xl font-bold text-slate-100">AI Grading Queue</h2>
-        <p className="text-xs text-slate-500 mt-1">Review subjective answers parsed by LLM models with confidence matrices.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">AI Grading Queue</h2>
+        <p className="text-sm text-muted-foreground mt-1">Review subjective answers parsed by LLM models with confidence matrices.</p>
       </div>
 
       {/* Summary cards */}

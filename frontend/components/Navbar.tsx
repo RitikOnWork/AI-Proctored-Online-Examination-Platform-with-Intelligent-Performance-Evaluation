@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Menu, X, Sun, Moon, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/providers/ThemeProvider";
 
 interface NavbarProps {
   className?: string;
@@ -11,18 +12,9 @@ interface NavbarProps {
 
 export default function Navbar({ className }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isDark, setIsDark] = useState(true);
+  const { isDark, toggleTheme } = useTheme();
   const [scrolled, setScrolled] = useState(false);
 
-  useEffect(() => {
-    // Sync dark mode state with document element
-    const root = window.document.documentElement;
-    if (isDark) {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-  }, [isDark]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -84,7 +76,8 @@ export default function Navbar({ className }: NavbarProps) {
           <div className="hidden md:flex items-center space-x-4">
             {/* Theme Toggle Button */}
             <button
-              onClick={() => setIsDark(!isDark)}
+              onClick={toggleTheme}
+
               className="p-2 rounded-xl border border-border/40 bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200"
               aria-label="Toggle theme"
             >
@@ -107,7 +100,8 @@ export default function Navbar({ className }: NavbarProps) {
           {/* Mobile menu Toggler */}
           <div className="md:hidden flex items-center space-x-3">
             <button
-              onClick={() => setIsDark(!isDark)}
+              onClick={toggleTheme}
+
               className="p-2 rounded-xl border border-border/40 bg-card hover:bg-muted text-muted-foreground"
               aria-label="Toggle theme"
             >

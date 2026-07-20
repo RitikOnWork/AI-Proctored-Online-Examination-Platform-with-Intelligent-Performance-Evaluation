@@ -117,8 +117,8 @@ export default function MyExams() {
       {/* Header bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-100">My Examinations</h2>
-          <p className="text-xs text-slate-500 mt-1">Review active, completed, or draft online papers.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">My Examinations</h2>
+          <p className="text-sm text-muted-foreground mt-1">Review active, completed, or draft online papers.</p>
         </div>
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />

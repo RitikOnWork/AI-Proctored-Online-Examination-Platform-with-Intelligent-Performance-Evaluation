@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, Bell, Sun, Moon, ChevronDown, User, Settings, LogOut, Shield } from "lucide-react";
 import { useSidebar } from "@/lib/sidebar-context";
 import { format } from "date-fns";
-import { api } from "@/services/api";
 import { dashboardService } from "@/services/dashboard";
+import { useTheme } from "@/providers/ThemeProvider";
 
 export default function AdminTopbar() {
   const { collapsed } = useSidebar();
-  const [isDark, setIsDark] = useState(true);
+  const { isDark, toggleTheme } = useTheme();
+
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -103,9 +104,10 @@ export default function AdminTopbar() {
       {/* Theme Toggle */}
       <motion.button
         whileTap={{ scale: 0.9 }}
-        onClick={() => setIsDark(!isDark)}
+        onClick={toggleTheme}
         className="p-2 rounded-xl bg-muted/50 border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
       >
+
         {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </motion.button>
 

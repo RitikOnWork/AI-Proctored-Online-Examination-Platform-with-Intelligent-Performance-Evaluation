@@ -113,8 +113,8 @@ export default function ProctoringReview() {
     <div className="space-y-6">
       {/* Title */}
       <div>
-        <h2 className="text-xl font-bold text-slate-100">Proctoring Review Console</h2>
-        <p className="text-xs text-slate-500 mt-1">Audit AI proctor events, check screen captures, and submit final flags.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">Proctoring Review Console</h2>
+        <p className="text-sm text-muted-foreground mt-1">Audit AI proctor events, check screen captures, and submit final flags.</p>
       </div>
 
       {errorMsg && <p className="text-xs text-rose-500 bg-rose-500/5 p-3 rounded-xl border border-rose-500/10">{errorMsg}</p>}

@@ -22,11 +22,12 @@ import { cn } from "@/lib/utils";
 import { useStudentProfile, useNotifications } from "@/hooks/useStudent";
 import { deleteCookie } from "@/services/api";
 import { motion } from "framer-motion";
+import { useTheme } from "@/providers/ThemeProvider";
 
 export default function StudentTopbar() {
   const router = useRouter();
   const { collapsed, activeSection, setActiveSection } = useSidebar();
-  const [isDark, setIsDark] = useState(true);
+  const { isDark, toggleTheme } = useTheme();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -35,14 +36,6 @@ export default function StudentTopbar() {
   const { data: profile } = useStudentProfile();
   const { data: notifications = [] } = useNotifications();
 
-  useEffect(() => {
-    const root = window.document.documentElement;
-    if (isDark) {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-  }, [isDark]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -146,10 +139,11 @@ export default function StudentTopbar() {
         <div className="flex items-center gap-3">
           {/* Light/Dark Toggle */}
           <button
-            onClick={() => setIsDark(!isDark)}
+            onClick={toggleTheme}
             className="p-2.5 rounded-xl border border-border/40 bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200"
             aria-label="Toggle theme"
           >
+
             {isDark ? (
               <Sun className="w-4 h-4 text-amber-500 animate-pulse" />
             ) : (

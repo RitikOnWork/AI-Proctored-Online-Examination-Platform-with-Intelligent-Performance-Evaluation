@@ -80,8 +80,8 @@ export default function Settings() {
       {/* Title */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-100">Settings</h2>
-          <p className="text-xs text-slate-500 mt-1">Configure profile records, exam rules defaults, and AI thresholds.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Settings</h2>
+          <p className="text-sm text-muted-foreground mt-1">Configure profile records, exam rules defaults, and AI thresholds.</p>
         </div>
         <button
           onClick={handleSave}

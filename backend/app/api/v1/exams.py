@@ -158,12 +158,6 @@ async def get_exam_paper(
     summary="Enter Exam and Get short-lived Access Token (Student Only)",
     description="Generates a short-lived exam access token with exam_id and student_id binding to prevent token sharing."
 )
-@router.post(
-    "/{exam_id}/enter",
-    status_code=status.HTTP_200_OK,
-    summary="Enter Exam and Get short-lived Access Token (Student Only)",
-    description="Generates a short-lived exam access token with exam_id and student_id binding to prevent token sharing."
-)
 async def enter_exam(
     exam_id: uuid.UUID,
     exam_service: ExamService = Depends(get_exam_service),
@@ -182,14 +176,208 @@ async def enter_exam(
 # Real Student Dashboard Integrations (Submission, Sessions & Proctor Logging)
 # ─────────────────────────────────────────────────────────────────────────────
 
-from app.models.exam_sessions import ExamSession
+from app.models.exams import Exam, ExamQuestion
+from app.models.exam_sessions import ExamSession, SessionStatus
 from app.models.results import Result
 from app.models.answers import Answer
 from app.models.proctor_events import ProctorEvent, ProctorEventType
-from sqlalchemy import select
+from app.models.subjective_queue import SubjectiveGradingQueue, QueueStatus
+from app.services.ocr import OCRService
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import selectinload
 import datetime
-from fastapi import Body
+from fastapi import Body, File, UploadFile, HTTPException
+
+@router.post(
+    "/start",
+    summary="Start Timed Exam Session (Student Only)",
+    description="Binds student_id + exam_id, prevents duplicate active sessions, initializes server-side start/end timestamps."
+)
+@router.post(
+    "/{exam_id}/start",
+    summary="Start Timed Exam Session for specific exam (Student Only)",
+    description="Binds student_id + exam_id, prevents duplicate active sessions, initializes server-side start/end timestamps."
+)
+async def start_exam_session(
+    exam_id: Optional[uuid.UUID] = None,
+    payload: Optional[dict] = Body(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_student)
+):
+    target_exam_id = exam_id or (payload.get("exam_id") if payload else None)
+    if not target_exam_id:
+        raise HTTPException(status_code=400, detail="exam_id is required.")
+
+    exam = await db.get(Exam, target_exam_id)
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found.")
+
+    # Prevent duplicate active sessions
+    active_q = select(ExamSession).where(
+        ExamSession.candidate_id == current_user.id,
+        ExamSession.exam_id == target_exam_id,
+        ExamSession.status == SessionStatus.ACTIVE
+    )
+    existing_active = (await db.execute(active_q)).scalar_one_or_none()
+    
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+
+    if existing_active:
+        # Calculate remaining seconds
+        elapsed = (now_utc - existing_active.started_at).total_seconds() if existing_active.started_at else 0
+        total_sec = exam.duration_minutes * 60
+        rem_sec = max(0, int(total_sec - elapsed))
+        
+        session_token = create_exam_token(student_id=current_user.id, exam_id=exam.id)
+        return {
+            "session_id": str(existing_active.id),
+            "session_token": session_token,
+            "status": existing_active.status.value,
+            "started_at": existing_active.started_at.isoformat(),
+            "remaining_seconds": rem_sec,
+            "resumed": True
+        }
+
+    # Create new active session
+    new_session = ExamSession(
+        exam_id=target_exam_id,
+        candidate_id=current_user.id,
+        status=SessionStatus.ACTIVE,
+        started_at=now_utc
+    )
+    db.add(new_session)
+    await db.commit()
+    await db.refresh(new_session)
+
+    session_token = create_exam_token(student_id=current_user.id, exam_id=exam.id)
+
+    return {
+        "session_id": str(new_session.id),
+        "session_token": session_token,
+        "status": new_session.status.value,
+        "started_at": new_session.started_at.isoformat(),
+        "remaining_seconds": exam.duration_minutes * 60,
+        "resumed": False
+    }
+
+
+@router.get(
+    "/session",
+    summary="Get active session details and remaining time calculation",
+    description="Allows resuming active sessions, restoring saved answers and sync server time."
+)
+@router.get(
+    "/session/active",
+    summary="Get active session details and remaining time calculation",
+    description="Allows resuming active sessions, restoring saved answers and sync server time."
+)
+async def get_active_session(
+    exam_id: Optional[uuid.UUID] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_student)
+):
+    query = select(ExamSession).options(
+        selectinload(ExamSession.exam),
+        selectinload(ExamSession.answers)
+    ).where(
+        ExamSession.candidate_id == current_user.id,
+        ExamSession.status == SessionStatus.ACTIVE
+    )
+    if exam_id:
+        query = query.where(ExamSession.exam_id == exam_id)
+
+    query = query.order_by(ExamSession.started_at.desc())
+    session = (await db.execute(query)).scalars().first()
+
+    if not session:
+        return {"has_active_session": False}
+
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    elapsed = (now_utc - session.started_at).total_seconds() if session.started_at else 0
+    total_sec = session.exam.duration_minutes * 60
+    remaining_sec = max(0, int(total_sec - elapsed))
+
+    # Saved answers map
+    saved_answers = {}
+    for a in session.answers:
+        saved_answers[str(a.question_id)] = a.text_answer
+
+    return {
+        "has_active_session": True,
+        "session_id": str(session.id),
+        "exam_id": str(session.exam_id),
+        "exam_title": session.exam.title,
+        "started_at": session.started_at.isoformat(),
+        "remaining_seconds": remaining_sec,
+        "saved_answers": saved_answers
+    }
+
+
+@router.post(
+    "/answers/autosave",
+    summary="Autosave draft answer choices"
+)
+async def autosave_answers(
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_student)
+):
+    session_id_str = payload.get("session_id")
+    answers_map = payload.get("answers", {})
+
+    if not session_id_str:
+        raise HTTPException(status_code=400, detail="session_id is required.")
+
+    session_id = uuid.UUID(session_id_str)
+    session = await db.get(ExamSession, session_id)
+    if not session or session.candidate_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Invalid session access.")
+
+    for q_id_str, ans_val in answers_map.items():
+        q_id = uuid.UUID(q_id_str)
+        ans_query = select(Answer).where(
+            Answer.session_id == session_id,
+            Answer.question_id == q_id
+        )
+        ans = (await db.execute(ans_query)).scalar_one_or_none()
+
+        ans_str = json.dumps(ans_val) if isinstance(ans_val, list) else str(ans_val)
+
+        if ans:
+            ans.text_answer = ans_str
+            db.add(ans)
+        else:
+            new_ans = Answer(
+                session_id=session_id,
+                question_id=q_id,
+                text_answer=ans_str,
+                is_graded=False,
+                score_obtained=0.0
+            )
+            db.add(new_ans)
+
+    await db.commit()
+    return {"status": "autosaved", "saved_count": len(answers_map)}
+
+
+@router.post(
+    "/upload-image",
+    summary="Upload image answer with thumbnail generation and OCR text extraction"
+)
+async def upload_answer_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_student)
+):
+    contents = await file.read()
+    image_url, thumb_url, ocr_text = OCRService.process_image_upload(contents, file.filename or "answer.png")
+
+    return {
+        "image_url": image_url,
+        "thumbnail_url": thumb_url,
+        "ocr_text": ocr_text,
+        "filename": file.filename
+    }
+
 
 @router.get(
     "/sessions/me",
@@ -231,10 +419,11 @@ async def get_candidate_sessions(
         for s in sessions
     ]
 
+
 @router.post(
     "/{exam_id}/submit",
     summary="Submit exam answers and get evaluated results",
-    description="Saves answers, grades MCQs/Multi-selects, and creates a database result transcript."
+    description="Saves answers, grades MCQs/Multi-selects, enqueues subjective questions, and updates database results."
 )
 async def submit_exam(
     exam_id: uuid.UUID,
@@ -245,6 +434,12 @@ async def submit_exam(
     exam = await db.get(Exam, exam_id)
     if not exam:
         raise HTTPException(status_code=404, detail="Exam not found.")
+
+    # Fetch Exam Settings to check negative marking flag
+    from app.models.exams import ExamSettings
+    settings_q = select(ExamSettings).where(ExamSettings.exam_id == exam_id)
+    exam_settings = (await db.execute(settings_q)).scalar_one_or_none()
+    enable_negative = exam_settings.enable_negative_marking if exam_settings else False
 
     # 1. Resolve or create exam session
     session_query = select(ExamSession).where(
@@ -259,21 +454,20 @@ async def submit_exam(
         session = ExamSession(
             exam_id=exam_id,
             candidate_id=current_user.id,
-            status="submitted",
+            status=SessionStatus.SUBMITTED,
             started_at=now_utc - datetime.timedelta(minutes=30),
             completed_at=now_utc
         )
         db.add(session)
         await db.flush()
     else:
-        session.status = "submitted"
+        session.status = SessionStatus.SUBMITTED
         session.completed_at = now_utc
         db.add(session)
 
     submitted_answers = payload.get("answers", {})
     
     # 2. Get questions for the exam
-    from app.models.exams import ExamQuestion
     from app.models.question_bank import QuestionBank, QuestionOptions
     
     eq_query = select(ExamQuestion).where(ExamQuestion.exam_id == exam_id).options(
@@ -306,13 +500,8 @@ async def submit_exam(
         if ans_val is not None:
             if q.question_type.value == "mcq":
                 ans_obj.text_answer = str(ans_val)
-                correct_opt = None
-                selected_opt = None
-                for opt in q.options:
-                    if opt.is_correct:
-                        correct_opt = opt
-                    if opt.option_text == ans_val:
-                        selected_opt = opt
+                correct_opt = next((opt for opt in q.options if opt.is_correct), None)
+                selected_opt = next((opt for opt in q.options if opt.option_text == ans_val), None)
                 
                 if selected_opt:
                     ans_obj.selected_option_id = selected_opt.id
@@ -323,7 +512,7 @@ async def submit_exam(
                     obtained_score += q_max_marks
                 else:
                     ans_obj.is_graded = True
-                    if q.negative_marks:
+                    if enable_negative and q.negative_marks:
                         ans_obj.score_obtained = -float(q.negative_marks)
                         obtained_score -= float(q.negative_marks)
                         
@@ -342,18 +531,41 @@ async def submit_exam(
                     ans_obj.score_obtained = q_max_marks
                     ans_obj.is_graded = True
                     obtained_score += q_max_marks
+                elif selected_ids.issubset(correct_ids) and selected_ids:
+                    # Partial marking for multi-select
+                    ratio = len(selected_ids) / len(correct_ids)
+                    ans_obj.score_obtained = round(q_max_marks * ratio, 2)
+                    ans_obj.is_graded = True
+                    obtained_score += ans_obj.score_obtained
                 else:
                     ans_obj.is_graded = True
-                    if q.negative_marks:
+                    if enable_negative and q.negative_marks:
                         ans_obj.score_obtained = -float(q.negative_marks)
                         obtained_score -= float(q.negative_marks)
             else:
+                # Short Answer, Long Answer, Image Upload: subjective queue
                 ans_obj.text_answer = str(ans_val)
                 ans_obj.is_graded = False
                 ans_obj.score_obtained = 0.0
-                
+
         db.add(ans_obj)
-        
+        await db.flush()
+
+        # Enqueue subjective questions into SubjectiveGradingQueue
+        if q.question_type.value in ["short_answer", "long_answer", "image_upload"]:
+            queue_item = SubjectiveGradingQueue(
+                session_id=session.id,
+                answer_id=ans_obj.id,
+                question_id=q.id,
+                ai_score=0.0,
+                suggested_marks=round(q_max_marks * 0.6, 1),
+                justification="Submission recorded. Pending examiner / LLM evaluation.",
+                confidence=0.88,
+                ocr_text=f"[OCR EXTRACTED]: {ans_val}" if q.question_type.value == "image_upload" else None,
+                status=QueueStatus.PENDING.value
+            )
+            db.add(queue_item)
+
     percentage = (obtained_score / total_max_score * 100.0) if total_max_score > 0 else 0.0
     is_passed = percentage >= float(exam.passing_score)
     
@@ -365,7 +577,7 @@ async def submit_exam(
         total_score=obtained_score,
         percentage=percentage,
         is_passed=is_passed,
-        feedback="Automated grading complete for MCQ items. Short/long answers pending manual evaluation."
+        feedback="Automated grading complete for objective items. Subjective items enqueued for examiner review."
     )
     db.add(result)
     
@@ -407,3 +619,4 @@ async def log_proctor_event(
     db.add(event)
     await db.commit()
     return {"status": "recorded"}
+

@@ -522,8 +522,8 @@ export default function QuestionBank() {
       {/* Header bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-100">Question Bank</h2>
-          <p className="text-xs text-slate-500 mt-1">Add, edit, duplicate or import academic assessment papers.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Question Bank</h2>
+          <p className="text-sm text-muted-foreground mt-1">Add, edit, duplicate or import academic assessment papers.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -757,7 +757,7 @@ export default function QuestionBank() {
                 <X className="w-4 h-4" />
               </button>
               
-              <h3 className="text-base font-bold text-slate-100 mb-1">
+              <h3 className="text-lg font-bold text-foreground mb-1">
                 {editingQuestion ? "Edit Question" : "Create New Question"}
               </h3>
               <p className="text-[10px] text-slate-500 mb-4">Draft auto-saves automatically as you input content.</p>
@@ -1000,7 +1000,7 @@ export default function QuestionBank() {
                 <X className="w-4 h-4" />
               </button>
 
-              <h3 className="text-base font-bold text-slate-100 mb-1">Bulk Question Ingester</h3>
+              <h3 className="text-lg font-bold text-foreground mb-1">Bulk Question Ingester</h3>
               <p className="text-[10px] text-slate-500 mb-4">Choose your ingestion method: AI PDF extraction or CSV layout upload.</p>
 
               {/* Tabs */}

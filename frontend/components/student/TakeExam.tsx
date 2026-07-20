@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Clock,
   Video,
@@ -14,11 +14,15 @@ import {
   CheckCircle,
   Upload,
   User,
+  Maximize,
+  FileText,
+  Lock,
 } from "lucide-react";
 import { useSubmitExamMutation, useProctorWarningMutation } from "@/hooks/useStudent";
 import { RealExam, RealQuestion } from "@/types/student";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import axios from "axios";
 
 interface TakeExamProps {
   exam: RealExam;
@@ -32,38 +36,85 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [markedReview, setMarkedReview] = useState<Record<string, boolean>>({});
 
-  // Timer states
-  const [secondsRemaining, setSecondsRemaining] = useState(exam.duration_minutes * 60);
+  // Session & Timer states
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(exam.duration_minutes * 60);
+  const [isSessionResumed, setIsSessionResumed] = useState<boolean>(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<"Saved" | "Saving..." | "Error">("Saved");
 
-  // Proctor status simulator & accumulator
+  // Security & Proctoring states
   const [suspicionLevel, setSuspicionLevel] = useState<"Green" | "Yellow" | "Red">("Green");
-  const [proctorLogs, setProctorLogs] = useState<string[]>(["Exam initialized. Camera check complete."]);
+  const [suspicionScore, setSuspicionScore] = useState<number>(0);
+  const [proctorLogs, setProctorLogs] = useState<string[]>(["Secure Exam Session initialized."]);
   const [accumulatedEvents, setAccumulatedEvents] = useState<
     { event_type: string; confidence: number; details: string }[]
   >([]);
 
-  // Warning Modals
+  // Modals & Dialogs
   const [faceWarningOpen, setFaceWarningOpen] = useState(false);
   const [tabWarningOpen, setTabWarningOpen] = useState(false);
+  const [securityWarningOpen, setSecurityWarningOpen] = useState(false);
+  const [securityWarningText, setSecurityWarningText] = useState("");
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [isSubmittingPaper, setIsSubmittingPaper] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<{ url: string; ocr: string } | null>(null);
+
+  // References
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
   // Mutations
   const submitExamMutation = useSubmitExamMutation();
   const logWarningMutation = useProctorWarningMutation();
 
-  // Webcam Canvas Simulator
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  // Formatting timer
-  const formatTime = (totalSecs: number) => {
-    const hrs = Math.floor(totalSecs / 3600);
-    const mins = Math.floor((totalSecs % 3600) / 60);
-    const secs = totalSecs % 60;
-    return `${hrs > 0 ? hrs + ":" : ""}${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  const getApiBaseUrl = () => {
+    return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
   };
 
-  // Timer countdown hook
+  const getWsBaseUrl = () => {
+    const api = getApiBaseUrl();
+    return api.replace(/^http/, "ws");
+  };
+
+  // 1. Initialize or Resume Session on Mount
+  useEffect(() => {
+    const initSession = async () => {
+      try {
+        const token = localStorage.getItem("token") || examToken;
+        const authHeader = { headers: { Authorization: `Bearer ${token}` } };
+
+        // Try getting active session first
+        const activeRes = await axios.get(`${getApiBaseUrl()}/exams/session`, authHeader);
+        if (activeRes.data && activeRes.data.has_active_session) {
+          setSessionId(activeRes.data.session_id);
+          setSecondsRemaining(activeRes.data.remaining_seconds);
+          setIsSessionResumed(true);
+          if (activeRes.data.saved_answers) {
+            setAnswers(activeRes.data.saved_answers);
+          }
+          setProctorLogs((prev) => [...prev, "Active exam session restored successfully."]);
+        } else {
+          // Start a new session
+          const startRes = await axios.post(
+            `${getApiBaseUrl()}/exams/start`,
+            { exam_id: exam.id },
+            authHeader
+          );
+          setSessionId(startRes.data.session_id);
+          setSecondsRemaining(startRes.data.remaining_seconds);
+          setProctorLogs((prev) => [...prev, "New exam session bound to candidate ID."]);
+        }
+      } catch (err) {
+        console.error("Failed to initialize exam session", err);
+      }
+    };
+
+    initSession();
+  }, [exam.id, examToken]);
+
+  // 2. Timer Countdown Hook
   useEffect(() => {
     const interval = setInterval(() => {
       setSecondsRemaining((prev) => {
@@ -79,12 +130,159 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
     return () => clearInterval(interval);
   }, []);
 
-  // Web camera drawing loop
+  // 3. 10-Second WebSocket Heartbeat & Single Active Session Connection
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const wsUrl = `${getWsBaseUrl()}/ws/proctor/${sessionId}`;
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      setProctorLogs((prev) => [...prev, "Live WebSocket proctor stream connected."]);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.loads ? JSON.parse(event.data) : event.data;
+        if (data.type === "PONG") {
+          if (data.suspicion_score !== undefined) {
+            setSuspicionScore(data.suspicion_score);
+          }
+        } else if (data.type === "SESSION_TERMINATED") {
+          alert(`Session Terminated: ${data.reason}`);
+          onFinish();
+        } else if (data.type === "EVENT_ACKNOWLEDGED") {
+          if (data.total_suspicion_score) {
+            setSuspicionScore(data.total_suspicion_score);
+            if (data.total_suspicion_score > 40) {
+              setSuspicionLevel("Red");
+            } else if (data.total_suspicion_score > 20) {
+              setSuspicionLevel("Yellow");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("WS message parse error", e);
+      }
+    };
+
+    // Send 10-second heartbeat
+    const heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "HEARTBEAT" }));
+      }
+    }, 10000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [sessionId]);
+
+  // 4. Record Proctor Event helper
+  const recordProctorEvent = useCallback(
+    (eventType: string, details: string, confidence: number = 1.0) => {
+      const timeStr = new Date().toLocaleTimeString();
+      setProctorLogs((prev) => [...prev, `[ALERT] ${eventType.toUpperCase()}: ${details} at ${timeStr}`]);
+
+      setAccumulatedEvents((prev) => [...prev, { event_type: eventType, confidence, details }]);
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(
+          JSON.stringify({
+            type: "PROCTOR_EVENT",
+            event_type: eventType,
+            confidence,
+            details,
+          })
+        );
+      }
+    },
+    []
+  );
+
+  // 5. Browser Security Event Listeners (Tab Switch, Blur, Focus, Fullscreen, Copy, Paste, Right Click)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setSuspicionLevel("Yellow");
+        setTabWarningOpen(true);
+        recordProctorEvent("tab_switched", "Candidate switched browser tabs or minimized window.");
+      }
+    };
+
+    const handleWindowBlur = () => {
+      recordProctorEvent("window_blur", "Exam window lost focus.");
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        setSecurityWarningText("Fullscreen exit detected. Please return to fullscreen mode immediately.");
+        setSecurityWarningOpen(true);
+        recordProctorEvent("fullscreen_exit", "Candidate exited required full-screen mode.");
+      }
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      setSecurityWarningText("Copying content is disabled during proctored examinations.");
+      setSecurityWarningOpen(true);
+      recordProctorEvent("copy_attempt", "Copy shortcut triggered by candidate.");
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      setSecurityWarningText("Pasting content is disabled during proctored examinations.");
+      setSecurityWarningOpen(true);
+      recordProctorEvent("paste_attempt", "Paste shortcut triggered by candidate.");
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      recordProctorEvent("right_click", "Context menu right-click attempt.");
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("contextmenu", handleContextMenu);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("contextmenu", handleContextMenu);
+    };
+  }, [recordProctorEvent]);
+
+  // 6. Webcam Vision & Canvas Mesh Loop
   useEffect(() => {
     let animationId: number;
+    let stream: MediaStream | null = null;
+
+    const startWebcam = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      } catch (err) {
+        console.warn("Webcam access rejected or unavailable. Falling back to synthetic stream.", err);
+      }
+    };
+
+    startWebcam();
+
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -93,52 +291,55 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
       frame++;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Dark background
-      ctx.fillStyle = "#1e293b";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      if (videoRef.current && videoRef.current.readyState === 4) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+      } else {
+        // Dark background fallback
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Simulated grid mesh scanner lines
-      ctx.strokeStyle = "rgba(99, 102, 241, 0.1)";
-      ctx.lineWidth = 1;
-      for (let i = 0; i < canvas.width; i += 20) {
+        // Grid mesh lines
+        ctx.strokeStyle = "rgba(99, 102, 241, 0.15)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < canvas.width; i += 20) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, canvas.height);
+          ctx.stroke();
+        }
+        for (let i = 0; i < canvas.height; i += 20) {
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(canvas.width, i);
+          ctx.stroke();
+        }
+
+        // Avatar fallback head
+        ctx.fillStyle = "rgba(99, 102, 241, 0.3)";
         ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, canvas.height);
-        ctx.stroke();
-      }
-      for (let i = 0; i < canvas.height; i += 20) {
+        ctx.arc(canvas.width / 2, canvas.height / 2.2, 35, 0, Math.PI * 2);
+        ctx.fill();
         ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(canvas.width, i);
-        ctx.stroke();
+        ctx.ellipse(canvas.width / 2, canvas.height / 1.1, 55, 30, 0, 0, Math.PI * 2);
+        ctx.fill();
       }
 
-      // Draw avatar head placeholder
-      ctx.fillStyle = "rgba(99, 102, 241, 0.25)";
-      ctx.beginPath();
-      ctx.arc(canvas.width / 2, canvas.height / 2.2, 35, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.ellipse(canvas.width / 2, canvas.height / 1.1, 55, 30, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Scan overlay lines
+      // Scanning overlay beam
       const scanY = (frame * 1.5) % canvas.height;
-      ctx.strokeStyle = "rgba(99, 102, 241, 0.4)";
+      ctx.strokeStyle = "rgba(99, 102, 241, 0.5)";
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(0, scanY);
       ctx.lineTo(canvas.width, scanY);
       ctx.stroke();
 
-      // Draw bounding box
-      ctx.strokeStyle = suspicionLevel === "Green" ? "#10b981" : suspicionLevel === "Yellow" ? "#f59e0b" : "#ef4444";
+      // Face Bounding Box
+      const boxColor = suspicionLevel === "Green" ? "#10b981" : suspicionLevel === "Yellow" ? "#f59e0b" : "#ef4444";
+      ctx.strokeStyle = boxColor;
       ctx.lineWidth = 2.5;
       ctx.strokeRect(canvas.width / 2 - 45, canvas.height / 2.2 - 45, 90, 95);
 
-      // Status text on canvas
-      ctx.fillStyle = suspicionLevel === "Green" ? "#10b981" : suspicionLevel === "Yellow" ? "#f59e0b" : "#ef4444";
+      ctx.fillStyle = boxColor;
       ctx.font = "bold 9px monospace";
       ctx.fillText(suspicionLevel === "Green" ? "FACE IDENTIFIED" : "WARNING FLAG", 10, 20);
 
@@ -146,69 +347,69 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
     };
 
     draw();
-    return () => cancelAnimationFrame(animationId);
-  }, [suspicionLevel]);
 
-  // Tab switch listener
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.hidden) {
-        setSuspicionLevel("Yellow");
-        setTabWarningOpen(true);
-        const timeStr = new Date().toLocaleTimeString();
-        setProctorLogs((prev) => [
-          ...prev,
-          `[ALERT] Exit event: User switched browser tabs at ${timeStr}`,
-        ]);
-        
-        // Accumulate proctor event
-        setAccumulatedEvents((prev) => [
-          ...prev,
-          {
-            event_type: "tab_switched",
-            confidence: 1.0,
-            details: `Candidate switched browser tabs at ${timeStr}.`,
-          },
-        ]);
+    return () => {
+      cancelAnimationFrame(animationId);
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
       }
     };
+  }, [suspicionLevel]);
 
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, []);
+  // 7. Periodic Answer Autosave
+  const triggerAutosave = useCallback(async (currentAnswers: Record<string, any>) => {
+    if (!sessionId || Object.keys(currentAnswers).length === 0) return;
+    setAutosaveStatus("Saving...");
+    try {
+      const token = localStorage.getItem("token") || examToken;
+      await axios.post(
+        `${getApiBaseUrl()}/exams/answers/autosave`,
+        { session_id: sessionId, answers: currentAnswers },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setAutosaveStatus("Saved");
+    } catch (err) {
+      console.error("Autosave failed", err);
+      setAutosaveStatus("Error");
+    }
+  }, [sessionId, examToken]);
 
-  // Simulate Face missing warning on timer (e.g. after 30 seconds)
-  useEffect(() => {
-    if (!exam.settings?.enable_camera) return;
+  // 8. Handle Image Upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    const timer = setTimeout(() => {
-      setFaceWarningOpen(true);
-      setSuspicionLevel("Red");
-      const timeStr = new Date().toLocaleTimeString();
-      setProctorLogs((prev) => [
-        ...prev,
-        `[ALERT] webcam integrity: face missing alert at ${timeStr}`,
-      ]);
+    setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
 
-      // Accumulate proctor event
-      setAccumulatedEvents((prev) => [
-        ...prev,
-        {
-          event_type: "face_not_detected",
-          confidence: 0.95,
-          details: `Candidate face not detected on camera feed at ${timeStr}.`,
+      const token = localStorage.getItem("token") || examToken;
+      const res = await axios.post(`${getApiBaseUrl()}/exams/upload-image`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
         },
-      ]);
-    }, 30000); // 30 seconds into the exam
+      });
 
-    return () => clearTimeout(timer);
-  }, [exam]);
+      const currentQId = questions[currentIdx]?.id;
+      if (currentQId) {
+        handleSelectAnswer(currentQId, res.data.image_url, "image_upload");
+        setImagePreview({ url: res.data.image_url, ocr: res.data.ocr_text });
+      }
+    } catch (err) {
+      alert("Failed to upload image answer.");
+    } finally {
+      setImageUploading(false);
+    }
+  };
 
   const handleForceSubmit = () => {
     handleSubmitAnswers();
   };
 
   const handleSaveAndNext = () => {
+    triggerAutosave(answers);
     if (currentIdx < questions.length - 1) {
       setCurrentIdx((prev) => prev + 1);
     }
@@ -221,15 +422,18 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
   };
 
   const handleSelectAnswer = (qId: string, value: any, type: string) => {
+    let updated: Record<string, any>;
     if (type === "multi_select") {
       const currentSelection = answers[qId] || [];
-      const updated = currentSelection.includes(value)
+      const newList = currentSelection.includes(value)
         ? currentSelection.filter((v: any) => v !== value)
         : [...currentSelection, value];
-      setAnswers((prev) => ({ ...prev, [qId]: updated }));
+      updated = { ...answers, [qId]: newList };
     } else {
-      setAnswers((prev) => ({ ...prev, [qId]: value }));
+      updated = { ...answers, [qId]: value };
     }
+    setAnswers(updated);
+    triggerAutosave(updated);
   };
 
   const handleToggleReview = (qId: string) => {
@@ -238,27 +442,24 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
 
   const handleSubmitAnswers = async () => {
     setIsSubmittingPaper(true);
-    setErrorMsg("");
 
     try {
-      // 1. Submit answers to backend
       const submitRes = await submitExamMutation.mutateAsync({
         examId: exam.id,
         answers,
       });
 
-      const sessionId = submitRes.session_id;
+      const resolvedSessionId = submitRes.session_id || sessionId;
 
-      // 2. Sequentially upload proctor events generated during the session
-      if (sessionId && accumulatedEvents.length > 0) {
+      if (resolvedSessionId && accumulatedEvents.length > 0) {
         for (const evt of accumulatedEvents) {
           try {
             await logWarningMutation.mutateAsync({
-              sessionId,
+              sessionId: resolvedSessionId,
               payload: evt,
             });
           } catch (logErr) {
-            console.error("Failed to log individual proctor warning", logErr);
+            console.error("Failed to log proctor warning", logErr);
           }
         }
       }
@@ -271,7 +472,18 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
     }
   };
 
-  const [errorMsg, setErrorMsg] = useState("");
+  // Utility to calculate word count
+  const countWords = (text: string) => {
+    if (!text || typeof text !== "string") return 0;
+    return text.trim().split(/\s+/).filter(Boolean).length;
+  };
+
+  const formatTime = (totalSecs: number) => {
+    const hrs = Math.floor(totalSecs / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    return `${hrs > 0 ? hrs + ":" : ""}${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   const currentQuestion = questions[currentIdx];
 
@@ -300,55 +512,78 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
 
   return (
     <div className="fixed inset-0 z-50 bg-background text-foreground flex flex-col overflow-hidden select-none text-left">
+      {/* Hidden Video element for webcam capture */}
+      <video ref={videoRef} className="hidden" playsInline muted />
+
       {/* 1. Exam Header Panel */}
       <header className="h-16 border-b border-border/40 bg-card/60 backdrop-blur-md px-6 flex items-center justify-between shadow-sm shrink-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
           <span className="font-extrabold text-sm text-foreground truncate max-w-[200px] sm:max-w-none">
             {exam.title}
           </span>
+          {isSessionResumed && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
+              Resumed Session
+            </span>
+          )}
         </div>
 
-        {/* Timer Bar */}
-        <div className="flex items-center gap-3.5 bg-red-500/10 border border-red-500/20 px-4.5 py-1.5 rounded-2xl">
-          <Clock className="w-4 h-4 text-red-500 animate-pulse" />
-          <span className="font-bold text-sm text-red-500 font-mono tracking-wider">
-            {formatTime(secondsRemaining)}
-          </span>
+        {/* Timer & Autosave Status Bar */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground">
+            <span
+              className={cn(
+                "w-2 h-2 rounded-full",
+                autosaveStatus === "Saved" ? "bg-emerald-500" : "bg-amber-500 animate-pulse"
+              )}
+            />
+            <span>Autosave: {autosaveStatus}</span>
+          </div>
+
+          <div className="flex items-center gap-3.5 bg-red-500/10 border border-red-500/20 px-4.5 py-1.5 rounded-2xl">
+            <Clock className="w-4 h-4 text-red-500 animate-pulse" />
+            <span className="font-bold text-sm text-red-500 font-mono tracking-wider">
+              {formatTime(secondsRemaining)}
+            </span>
+          </div>
         </div>
 
-        <div className="text-xs text-muted-foreground font-semibold">
-          Secure Exam Proctored Interface
+        <div className="text-xs text-muted-foreground font-semibold flex items-center gap-1.5">
+          <Lock className="w-3.5 h-3.5 text-emerald-500" />
+          Secure AI-Proctored Interface
         </div>
       </header>
 
-      {/* 2. Main content split layout */}
+      {/* 2. Main Content Split Layout */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        
-        {/* Left Side: Question area */}
+        {/* Left Side: Question Area */}
         <main className="flex-1 overflow-y-auto p-6 space-y-6 flex flex-col justify-between min-w-0">
-          
           <div className="space-y-6">
-            {/* Top specs */}
+            {/* Top Specs */}
             <div className="flex justify-between items-center text-xs text-muted-foreground border-b border-border/10 pb-3">
               <span className="font-bold text-primary">
                 Question {currentIdx + 1} of {questions.length}
               </span>
-              <span className="font-semibold bg-muted/40 px-2.5 py-1 rounded-xl">
-                Marks: {currentQuestion.marks}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-semibold bg-muted/40 px-2.5 py-1 rounded-xl">
+                  Type: {currentQuestion.question_type.replace("_", " ").toUpperCase()}
+                </span>
+                <span className="font-semibold bg-muted/40 px-2.5 py-1 rounded-xl">
+                  Marks: {currentQuestion.marks}
+                </span>
+              </div>
             </div>
 
-            {/* Question Text block */}
+            {/* Question Text */}
             <div className="space-y-4 text-left">
               <h3 className="text-sm font-extrabold text-foreground">{currentQuestion.title}</h3>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                 {currentQuestion.question_text}
               </p>
 
-              {/* Answers Inputs Types rendering */}
+              {/* Answers Inputs Types Rendering */}
               <div className="mt-6">
-                
                 {/* MCQ */}
                 {currentQuestion.question_type === "mcq" && currentQuestion.options && (
                   <div className="grid grid-cols-1 gap-2.5">
@@ -402,52 +637,94 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
                   </div>
                 )}
 
-                {/* Short Answer */}
+                {/* Short Answer with Word Counter */}
                 {currentQuestion.question_type === "short_answer" && (
-                  <input
-                    type="text"
-                    value={answers[currentQuestion.id] || ""}
-                    onChange={(e) => handleSelectAnswer(currentQuestion.id, e.target.value, "short_answer")}
-                    placeholder="Type your response acronym or phrase here..."
-                    className="w-full px-4 py-3 text-xs bg-muted/10 border border-border/40 rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/60 transition-colors"
-                  />
-                )}
-
-                {/* Long Answer */}
-                {currentQuestion.question_type === "long_answer" && (
-                  <textarea
-                    rows={6}
-                    value={answers[currentQuestion.id] || ""}
-                    onChange={(e) => handleSelectAnswer(currentQuestion.id, e.target.value, "long_answer")}
-                    placeholder="Type your detailed explanation or codes here..."
-                    className="w-full px-4 py-3 text-xs bg-muted/10 border border-border/40 rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/60 transition-colors resize-none"
-                  />
-                )}
-
-                {/* Image Upload */}
-                {currentQuestion.question_type === "image_upload" && (
-                  <div className="border-2 border-dashed border-border/40 hover:border-primary/40 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-muted/5 transition-colors cursor-pointer">
-                    <Upload className="w-8 h-8 text-muted-foreground/60" />
-                    <div className="text-center">
-                      <p className="text-xs font-bold text-foreground">
-                        {answers[currentQuestion.id] ? "file_uploaded.png (Change file)" : "Upload drawing snapshot"}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">Drag and drop PNG, JPG files here</p>
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={answers[currentQuestion.id] || ""}
+                      onChange={(e) => handleSelectAnswer(currentQuestion.id, e.target.value, "short_answer")}
+                      placeholder="Type your response acronym or phrase here..."
+                      className="w-full px-4 py-3 text-xs bg-muted/10 border border-border/40 rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/60 transition-colors"
+                    />
+                    <div className="flex justify-between items-center text-[10px] text-muted-foreground font-semibold">
+                      <span>Word Count: {countWords(answers[currentQuestion.id] || "")} words</span>
+                      <span>Target: ~10-30 words</span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectAnswer(currentQuestion.id, "uploaded_image.png", "image_upload")}
-                      className="px-3.5 py-2 text-[10px] font-bold bg-muted hover:bg-muted/60 text-foreground border border-border/40 rounded-xl transition-all"
-                    >
-                      Browse Storage
-                    </button>
+                  </div>
+                )}
+
+                {/* Long Answer with Word Counter */}
+                {currentQuestion.question_type === "long_answer" && (
+                  <div className="space-y-2">
+                    <textarea
+                      rows={6}
+                      value={answers[currentQuestion.id] || ""}
+                      onChange={(e) => handleSelectAnswer(currentQuestion.id, e.target.value, "long_answer")}
+                      placeholder="Type your detailed explanation or codes here..."
+                      className="w-full px-4 py-3 text-xs bg-muted/10 border border-border/40 rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary/60 transition-colors resize-none"
+                    />
+                    <div className="flex justify-between items-center text-[10px] text-muted-foreground font-semibold">
+                      <span className="flex items-center gap-1">
+                        <FileText className="w-3 h-3 text-primary" />
+                        Word Count: {countWords(answers[currentQuestion.id] || "")} words
+                      </span>
+                      <span>Target: ~150-300 words</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Image Upload & Thumbnail / OCR Preview */}
+                {currentQuestion.question_type === "image_upload" && (
+                  <div className="space-y-4">
+                    <label className="border-2 border-dashed border-border/40 hover:border-primary/40 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-muted/5 transition-colors cursor-pointer">
+                      <Upload className="w-8 h-8 text-muted-foreground/60" />
+                      <div className="text-center">
+                        <p className="text-xs font-bold text-foreground">
+                          {imageUploading
+                            ? "Processing Image Upload & OCR..."
+                            : answers[currentQuestion.id]
+                            ? "Answer Uploaded! Click to replace image"
+                            : "Upload handwritten calculation or diagram snapshot"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Supported formats: PNG, JPG, WEBP
+                        </p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        disabled={imageUploading}
+                      />
+                    </label>
+
+                    {answers[currentQuestion.id] && (
+                      <div className="p-3 border border-border/40 bg-card rounded-xl space-y-2">
+                        <p className="text-[10px] font-bold text-muted-foreground">Uploaded Answer Snapshot:</p>
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={answers[currentQuestion.id]}
+                            alt="Answer preview"
+                            className="w-16 h-16 object-cover rounded-lg border border-border/20"
+                          />
+                          <div className="text-[10px] text-muted-foreground font-mono space-y-1">
+                            <p className="text-emerald-500 font-bold">✓ Upload Complete</p>
+                            {imagePreview?.ocr && (
+                              <p className="truncate max-w-xs text-foreground">{imagePreview.ocr}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Action Buttons footer */}
+          {/* Action Buttons Footer */}
           <div className="flex flex-wrap justify-between items-center gap-3 pt-6 border-t border-border/10 shrink-0">
             <div className="flex gap-2">
               <button
@@ -489,20 +766,21 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
           </div>
         </main>
 
-        {/* Right Side: Proctoring controls and question palette */}
+        {/* Right Side: AI Proctor stream & Question Palette */}
         <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border/40 bg-card flex flex-col justify-between shrink-0 overflow-y-auto">
-          
           <div className="p-5 space-y-6">
-            {/* AI Proctor Cam block */}
+            {/* AI Proctor Cam Stream */}
             <div className="space-y-3.5 text-left">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Video className="w-4.5 h-4.5 text-primary" /> AI Proctor Stream
+              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Video className="w-4.5 h-4.5 text-primary" /> AI Proctor Stream
+                </span>
+                <span className="text-[9px] font-mono text-emerald-500">WS Live</span>
               </h4>
 
               <div className="aspect-video w-full rounded-2xl overflow-hidden border border-border/40 bg-black relative">
                 <canvas ref={canvasRef} width={280} height={158} className="w-full h-full" />
-                {/* Floating suspicion label */}
-                <div className="absolute right-3.5 bottom-3.5 flex items-center gap-1.5 px-2 py-0.5 bg-black/60 rounded-full">
+                <div className="absolute right-3.5 bottom-3.5 flex items-center gap-1.5 px-2 py-0.5 bg-black/70 backdrop-blur-md rounded-full">
                   <span
                     className={cn(
                       "w-2 h-2 rounded-full",
@@ -514,12 +792,12 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
                     )}
                   />
                   <span className="text-[8px] font-bold text-white uppercase tracking-wider">
-                    {suspicionLevel} Risk
+                    Score: {suspicionScore.toFixed(0)} ({suspicionLevel})
                   </span>
                 </div>
               </div>
 
-              {/* Hardware checklist */}
+              {/* Hardware Checklist */}
               <div className="grid grid-cols-2 gap-2 text-[10px] font-semibold text-muted-foreground">
                 <div className="flex items-center gap-1.5 p-2 bg-muted/30 border border-border/10 rounded-xl">
                   <Video className="w-3.5 h-3.5 text-emerald-500" />
@@ -531,7 +809,7 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
                 </div>
                 <div className="flex items-center gap-1.5 p-2 bg-muted/30 border border-border/10 rounded-xl">
                   <Wifi className="w-3.5 h-3.5 text-emerald-500" />
-                  <span>Ping Stable</span>
+                  <span>WS 10s Pulse</span>
                 </div>
                 <div className="flex items-center gap-1.5 p-2 bg-muted/30 border border-border/10 rounded-xl">
                   <User className="w-3.5 h-3.5 text-emerald-500" />
@@ -540,7 +818,7 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
               </div>
             </div>
 
-            {/* Question Palette block */}
+            {/* Question Navigation Palette */}
             <div className="space-y-3.5 text-left">
               <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                 Question Navigation Palette
@@ -570,7 +848,7 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
                 })}
               </div>
 
-              {/* Legend info */}
+              {/* Legend Info */}
               <div className="grid grid-cols-2 gap-2 text-[9px] font-bold text-muted-foreground pt-2 border-t border-border/15">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />
@@ -588,13 +866,13 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
             </div>
           </div>
 
-          {/* Bottom logs */}
+          {/* Audit Logs Stream */}
           <div className="p-4 border-t border-border/20 bg-muted/10 max-h-36 overflow-y-auto">
             <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider text-left">
-              Real-Time audit Logs
+              Real-Time Audit Logs
             </p>
             <div className="font-mono text-[8px] space-y-1 mt-1.5 text-left">
-              {proctorLogs.slice(-4).map((log, idx) => (
+              {proctorLogs.slice(-5).map((log, idx) => (
                 <div key={idx} className={log.includes("[ALERT]") ? "text-red-500 font-bold" : "text-emerald-500"}>
                   {log}
                 </div>
@@ -604,41 +882,9 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
         </aside>
       </div>
 
-      {/* Warning Modals render (AnimatePresence) */}
+      {/* Warning Modals (AnimatePresence) */}
       <AnimatePresence>
-        {/* 1. Face Missing Warning */}
-        {faceWarningOpen && (
-          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="w-full max-w-sm bg-card border border-red-500/30 rounded-2xl p-6 text-center space-y-5 shadow-2xl"
-            >
-              <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mx-auto">
-                <ShieldAlert className="w-7 h-7 text-red-500" />
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-extrabold text-sm text-foreground">Webcam Integrity Flagged</h4>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  <strong>Face Not Detected.</strong> Please return to the center of your webcam. Ensure your face is
-                  fully lit and clearly visible to prevent auto-disqualification.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setFaceWarningOpen(false);
-                  setSuspicionLevel("Green");
-                }}
-                className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer"
-              >
-                Return to Exam Camera
-              </button>
-            </motion.div>
-          </div>
-        )}
-
-        {/* 2. Tab Switch Warning */}
+        {/* 1. Tab Switch Warning */}
         {tabWarningOpen && (
           <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div
@@ -670,6 +916,32 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
           </div>
         )}
 
+        {/* 2. Security Shortcut Warning (Copy, Paste, Fullscreen) */}
+        {securityWarningOpen && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="w-full max-w-sm bg-card border border-red-500/30 rounded-2xl p-6 text-center space-y-5 shadow-2xl"
+            >
+              <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 text-red-500 flex items-center justify-center mx-auto">
+                <ShieldAlert className="w-7 h-7 text-red-500" />
+              </div>
+              <div className="space-y-2">
+                <h4 className="font-extrabold text-sm text-foreground">Proctor Policy Violation</h4>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{securityWarningText}</p>
+              </div>
+              <button
+                onClick={() => setSecurityWarningOpen(false)}
+                className="w-full py-2.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-xl transition-all shadow-md cursor-pointer"
+              >
+                Acknowledge Warning
+              </button>
+            </motion.div>
+          </div>
+        )}
+
         {/* 3. Confirm Submit Exam */}
         {confirmSubmitOpen && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -680,7 +952,7 @@ export default function TakeExam({ exam, questions, examToken, onFinish }: TakeE
               className="w-full max-w-sm bg-card border border-border/40 rounded-2xl p-6 text-center space-y-5 shadow-2xl"
             >
               <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center mx-auto">
-                <CheckCircle className="w-7 h-7" />
+                <CheckCircle className="w-7 h-7 text-emerald-500" />
               </div>
               <div className="space-y-2">
                 <h4 className="font-extrabold text-sm text-foreground">Submit Assessment Paper?</h4>

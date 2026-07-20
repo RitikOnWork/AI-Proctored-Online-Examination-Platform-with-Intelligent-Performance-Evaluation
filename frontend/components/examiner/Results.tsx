@@ -92,8 +92,8 @@ export default function Results() {
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-100">Grades & Results</h2>
-          <p className="text-xs text-slate-500 mt-1">Export, download or audit finalized student marks transcripts.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Grades & Results</h2>
+          <p className="text-sm text-muted-foreground mt-1">Export, download or audit finalized student marks transcripts.</p>
         </div>
         <div className="flex gap-2">
           <button

@@ -95,8 +95,8 @@ export default function DashboardOverview() {
     <div className="space-y-6">
       {/* Header */}
       <motion.div {...sectionAnim}>
-        <h1 className="text-xl font-bold text-slate-100">Examiner Dashboard</h1>
-        <p className="text-sm text-slate-500 mt-1">Configure academic papers, proctoring assessments, and AI grading workflows</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Examiner Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">Configure academic papers, proctoring assessments, and AI grading workflows</p>
       </motion.div>
 
       {/* Stats Cards */}

@@ -58,8 +58,8 @@ export default function Students() {
     <div className="space-y-6">
       {/* Title */}
       <div>
-        <h2 className="text-xl font-bold text-slate-100">Students Registry</h2>
-        <p className="text-xs text-slate-500 mt-1">Audit student history profiles, performance trends, and security violation aggregates.</p>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">Students Registry</h2>
+        <p className="text-sm text-muted-foreground mt-1">Audit student history profiles, performance trends, and security violation aggregates.</p>
       </div>
 
       {errorMsg && <p className="text-xs text-rose-500 bg-rose-500/5 p-3 rounded-xl border border-rose-500/10">{errorMsg}</p>}
@@ -119,7 +119,7 @@ export default function Students() {
                     {selectedStudent.name[0].toUpperCase()}
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-100">{selectedStudent.name}</h4>
+                    <h4 className="text-sm font-bold text-foreground">{selectedStudent.name}</h4>
                     <p className="text-xs text-slate-500 mt-0.5">{selectedStudent.email}</p>
                   </div>
                 </div>

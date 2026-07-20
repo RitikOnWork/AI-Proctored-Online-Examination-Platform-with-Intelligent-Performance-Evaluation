@@ -129,8 +129,8 @@ export default function Analytics() {
       {/* Title & Description */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-100">Performance Analytics</h2>
-          <p className="text-xs text-slate-500 mt-1">Advanced metrics detailing course participation, AI accuracy, and candidate averages.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Performance Analytics</h2>
+          <p className="text-sm text-muted-foreground mt-1">Advanced metrics detailing course participation, AI accuracy, and candidate averages.</p>
         </div>
 
         {/* Time and Subject filter selections */}
